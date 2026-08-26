@@ -1,0 +1,15 @@
+# Optional: real Postgres instead of the embedded PGlite dev database.
+# docker compose up -d && export DATABASE_URL=postgres://tenon:tenon@localhost:5432/tenon
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: tenon
+      POSTGRES_PASSWORD: tenon
+      POSTGRES_DB: tenon
+    ports:
+      - "5432:5432"
+    volumes:
+      - tenon-pgdata:/var/lib/postgresql/data
+volumes:
+  tenon-pgdata:

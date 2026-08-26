@@ -1,0 +1,6 @@
+node_modules/
+.next/
+.tenon-data/
+.env.local
+.env
+*.tsbuildinfo
