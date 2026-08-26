@@ -33,6 +33,17 @@ Cost reality: multi-agent research runs ~15x chat tokens (Anthropic, verified). 
 4. **Never gate anything on model self-confidence.** Escalation and verification hang off mechanical checks (schema validity, quote matching, eval scores) — calibration data says "90% confident" means 70–85% correct across tiers.
 5. **For Tenon's own research features** (and how we run deep research for this project): cheap parallel readers, frontier decomposition and synthesis, a deterministic citation verifier, explicit stopping conditions, and aggressive context caching. Tier is the *fourth* most important cost lever, after token budget, context management, and harness design.
 
+## Production telemetry (Datadog, State of AI Engineering 2026)
+
+Datadog's report is anonymized production telemetry from thousands of orgs — methodologically stronger than a survey for what it measures, and vendor-published, so read the framing (they sell observability) separately from the numbers. Four findings that bear directly on this document:
+
+- **"Operational complexity — not model intelligence — is becoming the primary barrier to reliable AI at scale."** This is the thesis of this doc, now supported by production data rather than argument.
+- **~5% of LLM API calls error, ~60% of those are rate limits** (8.4M rate-limit events on one provider's API in a single month). This is why the eval gate distinguishes infrastructure errors from graded failures — without that, whichever version is scored second is systematically penalized. Batch APIs and caching are reliability levers, not just cost levers.
+- **69% of input tokens are system prompts, but only 28% of calls use prompt caching.** Tenon's system prompt is immutable per prompt version, which makes it the ideal caching target: cache reads are 0.1x input price. Queued change — a `cache_control` block on the system prompt in the provider adapter is the single highest-ratio cost lever available to this codebase.
+- **Agent-framework adoption doubled but reached only ~17.5% of orgs, and 59% of agentic requests still make a single service call.** Most production "agents" are one model call with tools. This supports ADR-1 and ADR-2: the orchestration framework tax is real and mostly unnecessary at this scale.
+
+One more use of the existing machinery this data suggests: **teams add models faster than they retire them** ("model churn becomes a governance problem"), with no way to know whether a swap degraded quality. Tenon's eval gate answers exactly that question — gate the *model change* against the held-out suite, not just the prompt change. Same mechanism, no new code.
+
 ## Cost ratio cheat sheet (Aug 2026, output-weighted, Opus 5 = 1.0)
 
 Frontier-premium (GPT-5.5 Pro-class) ~6x; **frontier (Opus 5, GPT-5.6 Sol) 1.0** ($5/$25 per Mtok); mid (Sonnet 5, Terra) ~0.4; small closed (Haiku 4.5, nano/Luna) ~0.05–0.2; **open hosted (gpt-oss-120b, DeepSeek V4 Flash, Qwen Flash) ~0.01–0.03** — a ~100x usable spread, before batch (−50%) and cache reads (0.1x input) stack on top.
