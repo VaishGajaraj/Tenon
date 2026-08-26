@@ -137,14 +137,15 @@ export function ReviewEditor(props: {
       selfCheckNotes: props.draft.selfCheckNotes,
     };
     try {
+      // Counts are deliberately NOT sent: the server derives every metric from
+      // the stored run. A number reported by the party being measured is not
+      // evidence, and these numbers are the product's proof.
       await submitReview({
         itemId: props.itemId,
         runId: props.runId,
         corrections,
         final,
         reviewSeconds: Math.round((Date.now() - startedAt.current) / 1000),
-        findingsTotal: rows.length,
-        findingsAccepted: rows.filter((r) => r.status !== "rejected").length,
       });
       router.push("/work");
       router.refresh();

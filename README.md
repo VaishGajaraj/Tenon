@@ -32,6 +32,7 @@ pnpm worker      # drafts intake items (mock mode without ANTHROPIC_API_KEY)
 pnpm dev         # http://localhost:3000 — review the draft, reject/edit/add findings
 pnpm learn       # corrections -> eval cases + proposed prompt version
 pnpm learn --promote  # eval-gate the proposal against the active version, promote if better
+pnpm selfcheck   # does each mechanism actually fire?
 pnpm metrics     # corrections/100, finding precision (Gate-3 kill line: 80%), review time
 ```
 

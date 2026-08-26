@@ -1,74 +1,150 @@
-/** Idempotent DDL, executed by scripts/init-db.ts against either driver. */
+/**
+ * Idempotent DDL, executed by scripts/init-db.ts against either driver.
+ *
+ * Note on migrations: this raw-DDL approach is a v0.1 expedient. The ALTERs
+ * below exist so that databases created by earlier versions upgrade in place.
+ * Before the first production write this should move to drizzle-kit migrations
+ * generated from schema.ts (see SPEC §8).
+ */
 export const DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS work_items (
     id SERIAL PRIMARY KEY,
+    org_id TEXT NOT NULL DEFAULT 'default',
     tenant TEXT NOT NULL,
     sku TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'intake',
     title TEXT NOT NULL,
     input JSONB NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now()
+    version INTEGER NOT NULL DEFAULT 0,
+    claimed_by TEXT,
+    claimed_expires_at TIMESTAMPTZ,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS runs (
     id SERIAL PRIMARY KEY,
-    item_id INTEGER NOT NULL,
+    org_id TEXT NOT NULL DEFAULT 'default',
+    item_id INTEGER NOT NULL REFERENCES work_items(id) ON DELETE RESTRICT,
     prompt_version_id INTEGER NOT NULL,
+    step TEXT NOT NULL DEFAULT 'draft',
     model TEXT NOT NULL,
+    is_mock BOOLEAN NOT NULL DEFAULT false,
     output JSONB NOT NULL,
+    grounding JSONB,
     usage JSONB,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS corrections (
     id SERIAL PRIMARY KEY,
-    item_id INTEGER NOT NULL,
-    run_id INTEGER NOT NULL,
+    org_id TEXT NOT NULL DEFAULT 'default',
+    item_id INTEGER NOT NULL REFERENCES work_items(id) ON DELETE RESTRICT,
+    run_id INTEGER NOT NULL REFERENCES runs(id) ON DELETE RESTRICT,
+    reviewer_id TEXT NOT NULL DEFAULT 'solo',
+    step TEXT NOT NULL DEFAULT 'draft',
+    is_mock BOOLEAN NOT NULL DEFAULT false,
     target_path TEXT NOT NULL,
     kind TEXT NOT NULL,
     reason_code TEXT NOT NULL,
     before JSONB,
     after JSONB,
     note TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS deliverables (
     id SERIAL PRIMARY KEY,
-    item_id INTEGER NOT NULL,
+    org_id TEXT NOT NULL DEFAULT 'default',
+    item_id INTEGER NOT NULL UNIQUE REFERENCES work_items(id) ON DELETE RESTRICT,
+    run_id INTEGER REFERENCES runs(id) ON DELETE RESTRICT,
+    prompt_version_id INTEGER,
+    reviewer_id TEXT NOT NULL DEFAULT 'solo',
+    is_mock BOOLEAN NOT NULL DEFAULT false,
     final JSONB NOT NULL,
     review_seconds INTEGER,
     correction_count INTEGER NOT NULL DEFAULT 0,
     findings_total INTEGER NOT NULL DEFAULT 0,
     findings_accepted INTEGER NOT NULL DEFAULT 0,
-    delivered_at TIMESTAMP NOT NULL DEFAULT now()
+    findings_added INTEGER NOT NULL DEFAULT 0,
+    delivered_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS prompt_versions (
     id SERIAL PRIMARY KEY,
+    org_id TEXT NOT NULL DEFAULT 'default',
     tenant TEXT NOT NULL,
     sku TEXT NOT NULL,
+    step TEXT NOT NULL DEFAULT 'draft',
     version INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     system_prompt TEXT NOT NULL,
     few_shots JSONB NOT NULL DEFAULT '[]',
     notes TEXT,
     parent_id INTEGER,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS eval_cases (
     id SERIAL PRIMARY KEY,
+    org_id TEXT NOT NULL DEFAULT 'default',
     tenant TEXT NOT NULL,
     sku TEXT NOT NULL,
+    step TEXT NOT NULL DEFAULT 'draft',
     source TEXT NOT NULL,
-    source_correction_id INTEGER,
+    source_correction_id INTEGER UNIQUE,
+    is_mock BOOLEAN NOT NULL DEFAULT false,
+    informative BOOLEAN NOT NULL DEFAULT true,
+    holdout BOOLEAN NOT NULL DEFAULT false,
     input JSONB NOT NULL,
     expectation JSONB NOT NULL,
-    weight REAL NOT NULL DEFAULT 1,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    weight DOUBLE PRECISION NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS eval_runs (
     id SERIAL PRIMARY KEY,
     prompt_version_id INTEGER NOT NULL,
     results JSONB NOT NULL,
-    pass_rate REAL NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    pass_rate DOUBLE PRECISION NOT NULL,
+    cases_scored INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+
+  // --- in-place upgrades for databases created by earlier versions ---
+  `ALTER TABLE work_items ADD COLUMN IF NOT EXISTS org_id TEXT NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE work_items ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE work_items ADD COLUMN IF NOT EXISTS claimed_by TEXT`,
+  `ALTER TABLE work_items ADD COLUMN IF NOT EXISTS claimed_expires_at TIMESTAMPTZ`,
+  `ALTER TABLE work_items ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE work_items ADD COLUMN IF NOT EXISTS last_error TEXT`,
+  `ALTER TABLE runs ADD COLUMN IF NOT EXISTS org_id TEXT NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE runs ADD COLUMN IF NOT EXISTS step TEXT NOT NULL DEFAULT 'draft'`,
+  `ALTER TABLE runs ADD COLUMN IF NOT EXISTS is_mock BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE runs ADD COLUMN IF NOT EXISTS grounding JSONB`,
+  `ALTER TABLE corrections ADD COLUMN IF NOT EXISTS org_id TEXT NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE corrections ADD COLUMN IF NOT EXISTS reviewer_id TEXT NOT NULL DEFAULT 'solo'`,
+  `ALTER TABLE corrections ADD COLUMN IF NOT EXISTS step TEXT NOT NULL DEFAULT 'draft'`,
+  `ALTER TABLE corrections ADD COLUMN IF NOT EXISTS is_mock BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS org_id TEXT NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS run_id INTEGER`,
+  `ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS prompt_version_id INTEGER`,
+  `ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS reviewer_id TEXT NOT NULL DEFAULT 'solo'`,
+  `ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS is_mock BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS findings_added INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE prompt_versions ADD COLUMN IF NOT EXISTS org_id TEXT NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE prompt_versions ADD COLUMN IF NOT EXISTS step TEXT NOT NULL DEFAULT 'draft'`,
+  `ALTER TABLE eval_cases ADD COLUMN IF NOT EXISTS org_id TEXT NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE eval_cases ADD COLUMN IF NOT EXISTS step TEXT NOT NULL DEFAULT 'draft'`,
+  `ALTER TABLE eval_cases ADD COLUMN IF NOT EXISTS is_mock BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE eval_cases ADD COLUMN IF NOT EXISTS informative BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE eval_cases ADD COLUMN IF NOT EXISTS holdout BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE eval_runs ADD COLUMN IF NOT EXISTS cases_scored INTEGER NOT NULL DEFAULT 0`,
+
+  // --- invariants and hot-path indices ---
+  `CREATE UNIQUE INDEX IF NOT EXISTS one_active_prompt_per_sku
+     ON prompt_versions (org_id, tenant, sku, step) WHERE status = 'active'`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uniq_deliverable_per_item ON deliverables (item_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items (status)`,
+  `CREATE INDEX IF NOT EXISTS idx_work_items_tenant_sku ON work_items (org_id, tenant, sku)`,
+  `CREATE INDEX IF NOT EXISTS idx_runs_item ON runs (item_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_corrections_item ON corrections (item_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_eval_cases_sku ON eval_cases (org_id, tenant, sku)`,
+  `CREATE INDEX IF NOT EXISTS idx_prompt_versions_sku ON prompt_versions (org_id, tenant, sku, status)`,
 ];

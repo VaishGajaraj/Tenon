@@ -1,23 +1,35 @@
 import { getDb, schema } from "../src/db/client";
 
-const CARRIER_ESTIMATE = `CLAIM 44-8871-D — WATER MITIGATION ESTIMATE (CARRIER)
-1. Water extraction, category 2 — 480 SF ............ $312.00
-2. LGR dehumidifier, 3 days @ $95/day ............... $285.00
-3. Air mover, 4 units x 3 days @ $32/day ............ $384.00
-4. Tear out wet drywall, 2' flood cut, 36 LF ........ $410.00
-5. Anti-microbial application, 480 SF ............... $148.00
-TOTAL ............................................... $1,539.00`;
+/**
+ * Seeds a small batch of synthetic water-loss claims. A batch (not one item) so
+ * the learning loop has enough corrections to produce a held-out suite large
+ * enough for the gate to be allowed to promote — demonstrating the guard rather
+ * than tiptoeing around it.
+ */
 
-const DRYING_LOG = `DRYING LOG — 12 Maple St, basement
-Day 1: 4 air movers + 1 LGR dehu placed. Moisture: drywall 98pts, sill 32%.
-Day 2: readings drywall 71pts, sill 27%. Equipment running.
-Day 3: readings drywall 44pts, sill 22%. Equipment running.
-Day 4: readings drywall 27pts, sill 18%. Equipment running.
-Day 5: readings drywall 12pts (goal met), sill 14% (goal met). Equipment pulled day 5. Final verification readings recorded.`;
+const BASE_ESTIMATE = (days: number, sf: number) => `WATER MITIGATION ESTIMATE (CARRIER)
+1. Water extraction, category 2 — ${sf} SF
+2. LGR dehumidifier, ${days} days
+3. Air mover, 4 units x ${days} days
+4. Tear out wet drywall, 2' flood cut
+5. Anti-microbial application, ${sf} SF`;
 
-const PHOTOS = `Photos show: poly containment barrier at stairwell with zipper door; PPE in use during tear-out; dehumidifier and 4 air movers placed; moisture meter readings on drywall and sill plate; completed flood cut.`;
+const BASE_LOG = (days: number) => `DRYING LOG
+Day 1: 4 air movers + 1 LGR dehu placed. Moisture readings taken.
+${Array.from({ length: days - 2 }, (_, i) => `Day ${i + 2}: readings falling. Equipment running.`).join("\n")}
+Day ${days}: drying goals met, equipment pulled, final verification readings recorded.`;
 
-const NOTES = `Carrier paid 3 equipment days; we ran 5 to hit drying goals per the log. Containment was set up day 1 (photo 3). We did a final moisture verification visit on day 5 that isn't on their estimate.`;
+const CLAIMS = [
+  { ref: "44-8871-D", addr: "12 Maple St", paid: 3, ran: 5, sf: 480 },
+  { ref: "44-9102-A", addr: "88 Ridge Ave", paid: 3, ran: 6, sf: 620 },
+  { ref: "45-1120-B", addr: "7 Cedar Ct", paid: 2, ran: 5, sf: 310 },
+  { ref: "45-2277-C", addr: "230 Elm Blvd", paid: 4, ran: 6, sf: 900 },
+  { ref: "45-3390-E", addr: "19 Birch Ln", paid: 3, ran: 5, sf: 400 },
+  { ref: "45-4418-F", addr: "64 Walnut Way", paid: 2, ran: 5, sf: 275 },
+  { ref: "45-5501-G", addr: "3 Spruce Ter", paid: 3, ran: 6, sf: 540 },
+  { ref: "45-6644-H", addr: "150 Oak Dr", paid: 4, ran: 5, sf: 720 },
+  { ref: "45-7788-J", addr: "22 Pine Hollow", paid: 3, ran: 5, sf: 360 },
+];
 
 async function main() {
   const db = await getDb();
@@ -26,20 +38,23 @@ async function main() {
     console.log(`seed skipped — ${existing.length} work item(s) already present`);
     process.exit(0);
   }
-  await db.insert(schema.workItems).values({
-    tenant: "mitigation",
-    sku: "supplement-review",
-    status: "intake",
-    title: "Claim 44-8871-D — 12 Maple St water loss",
-    input: {
-      claimRef: "44-8871-D",
-      carrierEstimateText: CARRIER_ESTIMATE,
-      dryingLogText: DRYING_LOG,
-      photosSummary: PHOTOS,
-      contractorNotes: NOTES,
-    },
-  });
-  console.log("seeded 1 synthetic claim (Claim 44-8871-D). Run: pnpm worker");
+  for (const c of CLAIMS) {
+    await db.insert(schema.workItems).values({
+      tenant: "mitigation",
+      sku: "supplement-review",
+      status: "intake",
+      title: `Claim ${c.ref} — ${c.addr} water loss`,
+      input: {
+        claimRef: c.ref,
+        carrierEstimateText: BASE_ESTIMATE(c.paid, c.sf),
+        dryingLogText: BASE_LOG(c.ran),
+        photosSummary:
+          "Photos show poly containment barrier at stairwell, PPE in use, dehumidifier and air movers placed, moisture meter readings on drywall and sill plate.",
+        contractorNotes: `Carrier paid ${c.paid} equipment days; we ran ${c.ran} to hit drying goals per the log. Containment set up day 1. Final moisture verification visit is not on their estimate.`,
+      },
+    });
+  }
+  console.log(`seeded ${CLAIMS.length} synthetic claims. Run: pnpm worker`);
   process.exit(0);
 }
 

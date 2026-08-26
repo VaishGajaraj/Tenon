@@ -1,6 +1,6 @@
 {
   "name": "tenon",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Delivery harness for AI-native service firms: SKU-as-config pipeline, expert review queue, corrections-to-learning loop.",
   "scripts": {
@@ -8,11 +8,14 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
     "db:init": "tsx scripts/init-db.ts",
     "seed": "tsx scripts/seed.ts",
     "worker": "tsx scripts/worker.ts",
     "learn": "tsx scripts/learn.ts",
-    "metrics": "tsx scripts/metrics.ts"
+    "metrics": "tsx scripts/metrics.ts",
+    "selfcheck": "tsx scripts/doctor.ts",
+    "demo": "tsx scripts/demo-review.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

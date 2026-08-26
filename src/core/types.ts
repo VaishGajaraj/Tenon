@@ -31,13 +31,41 @@ export type WorkItemStatus =
 export const CorrectionKind = z.enum(["edit", "reject", "add"]);
 export type CorrectionKind = z.infer<typeof CorrectionKind>;
 
-export interface CorrectionEvent {
-  targetPath: string;
-  kind: CorrectionKind;
-  reasonCode: string;
-  before: unknown;
-  after: unknown;
-  note?: string;
+export const CorrectionEvent = z.object({
+  targetPath: z.string(),
+  kind: CorrectionKind,
+  reasonCode: z.string(),
+  before: z.unknown().nullable(),
+  after: z.unknown().nullable(),
+  note: z.string().optional(),
+});
+export type CorrectionEvent = z.infer<typeof CorrectionEvent>;
+
+/**
+ * A reviewer reason code. `weight` and `mockLesson` live here (not in the
+ * learning loop) so that core never knows a tenant's vocabulary — ADR-3.
+ */
+export interface ReasonCode {
+  code: string;
+  label: string;
+  /** Eval weight for cases mined from this reason. Style fixes matter less. */
+  weight: number;
+  /** What the offline reflection heuristic should learn from this cluster. */
+  mockLesson: string;
+  /**
+   * How to turn a correction with this reason into a discriminative eval case.
+   *  - "forbid_title": the drafted title must not reappear (rejections)
+   *  - "require_terms": the corrected content's key terms must appear (adds)
+   *  - "forbid_citation": that finding must not carry the old citation
+   *  - "none": not mined (pure style)
+   */
+  expectation: "forbid_title" | "require_terms" | "forbid_citation" | "none";
+}
+
+/** A prompt version as the runner/learning loop sees it. */
+export interface PromptSnapshot {
+  systemPrompt: string;
+  fewShots: { situation: string; lesson: string }[];
 }
 
 /** SKU definition: everything tenant-specific lives here. */
@@ -51,15 +79,24 @@ export interface SkuDef {
   /** Fields shown on the intake form, in order. */
   intakeFields: { key: string; label: string; kind: "text" | "textarea" }[];
   /** Reviewer reason-code vocabulary (drives the learning loop). */
-  reasonCodes: { code: string; label: string }[];
+  reasonCodes: ReasonCode[];
   /** Finding categories for this SKU. */
   categories: string[];
   /** Version 1 system prompt (seeded into prompt_versions on init). */
   systemPromptV1: string;
   /** Renders the user message for a given validated input. */
   renderUserMessage(input: any): string;
-  /** Grading rubric shown to the eval grader model. */
+  /** Grading rubric handed to the grader model in real mode. */
   evalRubric: string;
-  /** Mock draft used when no API key is configured (offline demo). */
-  mockDraft(input: any): DraftOutput;
+  /**
+   * The source text a finding must be grounded in. Used by the deterministic
+   * grounding check — no model call, no self-reported confidence.
+   */
+  sourceText(input: any): string;
+  /**
+   * Mock draft for offline mode. MUST be a function of the prompt snapshot as
+   * well as the input, otherwise the offline eval gate is a tautology: every
+   * version produces identical output and can never be shown to improve.
+   */
+  mockDraft(input: any, pv: PromptSnapshot): DraftOutput;
 }
