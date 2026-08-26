@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, schema } from "@/db/client";
@@ -227,11 +228,39 @@ async function countCases(tenant: string, sku: string): Promise<number> {
   return rows.length;
 }
 
+/** Content hash of a proposal — the identity of a *change*, not a row. */
+export function signatureOf(p: { systemPrompt: string; fewShots: unknown }): string {
+  return createHash("sha256")
+    .update(p.systemPrompt)
+    .update(JSON.stringify(p.fewShots ?? []))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+export interface ProposeOptions {
+  /** Named line of improvement. Several may be open at once. */
+  branch?: string;
+  /** Reflect only on these reason codes (a cluster-scoped branch). */
+  reasonCodes?: string[];
+}
+
 /**
- * Propose a new prompt version. The reflector only sees corrections whose eval
- * cases are NOT held out, so the graded suite stays unseen (train/test split).
+ * Propose a new prompt version on a branch.
+ *
+ * The reflector only sees corrections whose eval cases are NOT held out, so the
+ * graded suite stays unseen (train/test split). Proposals live on named
+ * branches — governed change, borrowed from the branching-knowledge model
+ * Modern Relay publishes for Omnigraph — so several independent lines of
+ * improvement can be explored simultaneously and gated against each other.
+ * A change whose signature already lost the gate is never proposed again:
+ * failed attempts are retained knowledge, not noise.
  */
-export async function proposeNewVersion(tenant: string, sku: string): Promise<number | null> {
+export async function proposeNewVersion(
+  tenant: string,
+  sku: string,
+  opts: ProposeOptions = {},
+): Promise<number | null> {
+  const branch = opts.branch ?? "main";
   const db = await getDb();
   const def = getSku(tenant, sku);
   const active = await activePromptVersion(tenant, sku);
@@ -261,7 +290,9 @@ export async function proposeNewVersion(tenant: string, sku: string): Promise<nu
     .orderBy(desc(schema.corrections.createdAt))
     .limit(100);
 
-  const trainable = (rows as { c: any }[]).filter((r) => !holdoutIds.has(r.c.id));
+  const trainable = (rows as { c: any }[])
+    .filter((r) => !holdoutIds.has(r.c.id))
+    .filter((r) => !opts.reasonCodes || opts.reasonCodes.includes(r.c.reasonCode));
   if (trainable.length === 0) return null;
 
   const clusters = new Map<string, number>();
@@ -337,13 +368,32 @@ HARD RULES:
   }
   proposal.fewShots = proposal.fewShots.slice(0, MAX_FEW_SHOTS);
 
+  // Failed attempts are knowledge: never re-propose a change that already lost
+  // the gate, and never re-propose the version that is already active.
+  const signature = signatureOf(proposal);
+  const priorAttempts: { signature: string | null; outcome: string | null }[] = await db
+    .select({
+      signature: schema.promptVersions.signature,
+      outcome: schema.promptVersions.outcome,
+    })
+    .from(schema.promptVersions)
+    .where(and(eq(schema.promptVersions.tenant, tenant), eq(schema.promptVersions.sku, sku)));
+  if (
+    priorAttempts.some((p) => p.signature === signature) ||
+    signature === signatureOf(active)
+  ) {
+    return null;
+  }
+
+  // Retire only this branch's open proposal — other branches keep exploring.
   await db
     .update(schema.promptVersions)
-    .set({ status: "retired" })
+    .set({ status: "retired", outcome: "superseded" })
     .where(
       and(
         eq(schema.promptVersions.tenant, tenant),
         eq(schema.promptVersions.sku, sku),
+        eq(schema.promptVersions.branch, branch),
         eq(schema.promptVersions.status, "proposed"),
       ),
     );
@@ -358,15 +408,55 @@ HARD RULES:
     .values({
       tenant,
       sku,
+      branch,
       version: nextVersion,
       status: "proposed",
       systemPrompt: proposal.systemPrompt,
       fewShots: proposal.fewShots,
+      signature,
       notes: proposal.notes,
       parentId: active.id,
     })
     .returning({ id: schema.promptVersions.id });
   return inserted.id;
+}
+
+/**
+ * Open one branch per correction cluster, plus a combined branch.
+ *
+ * Why: a single combined proposal that fixes citations but hurts recall is
+ * rejected wholesale and teaches nothing. One branch per reason code gives
+ * attribution — you learn which lesson actually earned the improvement.
+ */
+export async function proposePerCluster(
+  tenant: string,
+  sku: string,
+  maxBranches = 3,
+): Promise<{ branch: string; id: number }[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ c: schema.corrections })
+    .from(schema.corrections)
+    .innerJoin(schema.workItems, eq(schema.corrections.itemId, schema.workItems.id))
+    .where(and(eq(schema.workItems.tenant, tenant), eq(schema.workItems.sku, sku)))
+    .orderBy(desc(schema.corrections.createdAt))
+    .limit(200);
+
+  const counts = new Map<string, number>();
+  for (const { c } of rows as { c: any }[]) {
+    counts.set(c.reasonCode, (counts.get(c.reasonCode) ?? 0) + 1);
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxBranches);
+
+  const opened: { branch: string; id: number }[] = [];
+  for (const [code] of top) {
+    const id = await proposeNewVersion(tenant, sku, { branch: `fix/${code}`, reasonCodes: [code] });
+    if (id) opened.push({ branch: `fix/${code}`, id });
+  }
+  // The combined line stays on main.
+  const mainId = await proposeNewVersion(tenant, sku, { branch: "main" });
+  if (mainId) opened.push({ branch: "main", id: mainId });
+  return opened;
 }
 
 export interface GateResult {
@@ -509,5 +599,109 @@ export async function promoteIfBetter(
     active: a.passRate,
     total: p.total,
     reason: "improved beyond margin on held-out suite",
+  };
+}
+
+export interface BranchResult {
+  id: number;
+  branch: string;
+  version: number;
+  passRate: number;
+  promoted: boolean;
+}
+
+/**
+ * Gate every open branch against the active version and promote the single best
+ * that clears the margin. Losers are retired with their score recorded — a
+ * rejected proposal is evidence about the problem, not garbage, and its
+ * signature stops the same change being proposed again.
+ */
+export async function promoteBest(
+  tenant: string,
+  sku: string,
+  margin = DEFAULT_MARGIN,
+): Promise<{
+  active: number;
+  total: number;
+  branches: BranchResult[];
+  promoted: BranchResult | null;
+  reason: string;
+}> {
+  const db = await getDb();
+  const active = await activePromptVersion(tenant, sku);
+  const open = await db
+    .select()
+    .from(schema.promptVersions)
+    .where(
+      and(
+        eq(schema.promptVersions.tenant, tenant),
+        eq(schema.promptVersions.sku, sku),
+        eq(schema.promptVersions.status, "proposed"),
+      ),
+    );
+
+  const baseline = await runEvalGate(tenant, sku, active.id);
+  const branches: BranchResult[] = [];
+  for (const pv of open as any[]) {
+    const r = await runEvalGate(tenant, sku, pv.id);
+    branches.push({
+      id: pv.id,
+      branch: pv.branch,
+      version: pv.version,
+      passRate: r.passRate,
+      promoted: false,
+    });
+  }
+  branches.sort((a, b) => b.passRate - a.passRate);
+
+  if (baseline.total < MIN_SUITE) {
+    return {
+      active: baseline.passRate,
+      total: baseline.total,
+      branches,
+      promoted: null,
+      reason: `suite too small (${baseline.total} < ${MIN_SUITE} gradeable held-out cases)`,
+    };
+  }
+
+  const winner = branches.find((b) => b.passRate > baseline.passRate + margin) ?? null;
+
+  // Record every attempt's score before changing any status.
+  for (const b of branches) {
+    await db
+      .update(schema.promptVersions)
+      .set({
+        evalPassRate: b.passRate,
+        ...(b.id === winner?.id
+          ? {}
+          : { status: "retired", outcome: "rejected" }),
+      })
+      .where(eq(schema.promptVersions.id, b.id));
+  }
+
+  if (!winner) {
+    return {
+      active: baseline.passRate,
+      total: baseline.total,
+      branches,
+      promoted: null,
+      reason: `no branch beat the active version by more than ${margin}`,
+    };
+  }
+
+  await db.execute(
+    sql`UPDATE prompt_versions
+        SET status = CASE WHEN id = ${winner.id} THEN 'active' ELSE 'retired' END,
+            outcome = CASE WHEN id = ${winner.id} THEN 'promoted' ELSE 'superseded' END
+        WHERE tenant = ${tenant} AND sku = ${sku}
+          AND (id = ${winner.id} OR status = 'active')`,
+  );
+  winner.promoted = true;
+  return {
+    active: baseline.passRate,
+    total: baseline.total,
+    branches,
+    promoted: winner,
+    reason: `branch "${winner.branch}" improved beyond margin on the held-out suite`,
   };
 }

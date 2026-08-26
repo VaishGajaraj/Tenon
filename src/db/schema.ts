@@ -96,10 +96,22 @@ export const promptVersions = pgTable("prompt_versions", {
   tenant: text("tenant").notNull(),
   sku: text("sku").notNull(),
   step: text("step").notNull().default("draft"),
+  /**
+   * Git-style branch. Proposals live on named branches so several independent
+   * lines of improvement can be explored at once and gated against each other,
+   * instead of one open proposal at a time. Only 'main' ever holds `active`.
+   */
+  branch: text("branch").notNull().default("main"),
   version: integer("version").notNull(),
   status: text("status").notNull().default("active"), // active | proposed | retired
   systemPrompt: text("system_prompt").notNull(),
   fewShots: jsonb("few_shots").notNull().default([]),
+  /** Content hash — a change that already lost the gate is never re-proposed. */
+  signature: text("signature"),
+  /** promoted | rejected | superseded — why this version stopped being current. */
+  outcome: text("outcome"),
+  /** The score this version earned when it was gated. Failed attempts are knowledge. */
+  evalPassRate: doublePrecision("eval_pass_rate"),
   notes: text("notes"),
   parentId: integer("parent_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -123,6 +123,17 @@ async function main() {
     const shots = Array.isArray(activeV?.fewShots) ? activeV.fewShots.length : 0;
     line("learned examples in the active prompt", String(shots), shots > 0);
 
+    // 6b. Branching + retained failed attempts (governed change)
+    const branches = new Set((versions as any[]).map((v) => v.branch ?? "main"));
+    const scored = (versions as any[]).filter((v) => v.evalPassRate != null);
+    const rejected = (versions as any[]).filter((v) => v.outcome === "rejected");
+    line("branches explored", `${branches.size} (${[...branches].join(", ")})`, null);
+    line(
+      "failed attempts retained with scores",
+      `${rejected.length} rejected, ${scored.length} scored`,
+      null,
+    );
+
     // 7. Deliverables and the counterweight
     const dels = await db
       .select({ d: schema.deliverables })

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   expectationFor,
   gradeOutput,
+  signatureOf,
   type Expectation,
 } from "../src/learn/loop";
 import { mitigationSupplementSku as sku } from "../src/tenants/mitigation/sku";
@@ -165,4 +166,13 @@ test("reason-code weights and lessons live on the SKU, not in the learning loop 
   );
   assert.ok(!/drying log/i.test(loop), "core must not contain tenant domain language");
   assert.ok(!/"style"/.test(loop), "core must not hardcode a tenant reason code");
+});
+
+test("a change has a stable identity, so a failed attempt is never retried", () => {
+  const a = { systemPrompt: "P", fewShots: [{ situation: "s", lesson: "l" }] };
+  const b = { systemPrompt: "P", fewShots: [{ situation: "s", lesson: "l" }] };
+  const c = { systemPrompt: "P", fewShots: [{ situation: "s", lesson: "different" }] };
+  assert.equal(signatureOf(a), signatureOf(b), "same change must hash the same");
+  assert.notEqual(signatureOf(a), signatureOf(c), "a different lesson is a different change");
+  assert.notEqual(signatureOf(a), signatureOf({ systemPrompt: "Q", fewShots: a.fewShots }));
 });
