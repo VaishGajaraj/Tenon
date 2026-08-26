@@ -1,5 +1,7 @@
 # Tenon
 
+> **Start here:** [`docs/BRIEF.md`](docs/BRIEF.md) — what this is, why, where it stands, and what happens next.
+
 **The delivery harness for AI-native service companies — without hiring AI engineers.**
 
 If your company does the work (claims, contracts, closes, audits) with AI plus expert review,
