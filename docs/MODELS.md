@@ -33,6 +33,15 @@ Cost reality: multi-agent research runs ~15x chat tokens (Anthropic, verified). 
 4. **Never gate anything on model self-confidence.** Escalation and verification hang off mechanical checks (schema validity, quote matching, eval scores) — calibration data says "90% confident" means 70–85% correct across tiers.
 5. **For Tenon's own research features** (and how we run deep research for this project): cheap parallel readers, frontier decomposition and synthesis, a deterministic citation verifier, explicit stopping conditions, and aggressive context caching. Tier is the *fourth* most important cost lever, after token budget, context management, and harness design.
 
+## CORRECTION (Aug 26, 2026) — what failed adversarial verification
+
+A 107-agent verification pass killed several numbers this document originally leaned on. Stated plainly rather than quietly revised:
+
+- **The Databricks GEPA/Agent Bricks cost claims are evidentially worthless.** The "10x lower cost" (and the 90x framing derived from that family of posts) names no benchmark dataset, no baseline model, and no cost methodology — and no independent replication or critique exists. Directionally interesting, not citable. Treat every "optimized cheap model beats frontier" headline in this doc as **unreplicated vendor marketing** until someone reproduces it.
+- **Every GEPA efficiency figure was refuted 0-3**: the 6%/20% gain over GRPO at 35x fewer rollouts, the "large gain from a handful of rollouts," and the 100–500-evaluations convergence number. So **the question "how many corrections before an optimized prompt beats a frontier baseline" has no verified answer.**
+- The only surviving signal on that question cuts the *other* way: a practitioner report that 20–100 examples outperform 500, and that GEPA overfits by encoding edge cases into verbose prompts. If that generalizes, the compounding asset saturates early and **the corrections-corpus-as-moat argument weakens**, rather than strengthening with volume.
+- What *did* survive 3-0: **GEPA is the peer-reviewed (arXiv 2507.19457, ICLR 2026 Oral), MIT-licensed, pip-installable form of exactly this loop** — select a candidate, execute on a minibatch capturing traces, have an LLM diagnose failures from those traces, mutate, accept only on measured improvement, with a held-out Pareto set for candidate evaluation. It reaches any operator free through `gepa`, MLflow OSS, or `dspy.GEPA`. **Implication for this codebase: do not reimplement the optimizer — wrap it.** The reflection step in `src/learn/loop.ts` is a hand-rolled version of a better-studied algorithm.
+
 ## Production telemetry (Datadog, State of AI Engineering 2026)
 
 Datadog's report is anonymized production telemetry from thousands of orgs — methodologically stronger than a survey for what it measures, and vendor-published, so read the framing (they sell observability) separately from the numbers. Four findings that bear directly on this document:
