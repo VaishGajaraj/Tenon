@@ -16,6 +16,14 @@ type Row = {
   note: string;
 };
 
+function demoRank(f: Finding): number {
+  if (f.predicate === "description_divergence") return 0;
+  if (f.predicate === "attribute_mismatch" && f.field === "frequency") return 1;
+  if (f.predicate === "unmatched_in_copy" && (f.iaDisplayId === "ITGC-PS-01" || /ITGC-PS-01/.test(f.title))) return 2;
+  if (f.predicate === "needs_human_match") return 3;
+  return 10;
+}
+
 export function RcmReviewEditor(props: {
   itemId: number;
   runId: number;
@@ -27,7 +35,9 @@ export function RcmReviewEditor(props: {
   const router = useRouter();
   const startedAt = useRef(Date.now());
   const [rows, setRows] = useState<Row[]>(
-    props.draft.findings.map((f) => ({
+    [...props.draft.findings]
+      .sort((a, b) => demoRank(a) - demoRank(b))
+      .map((f) => ({
       finding: f,
       status: "accepted",
       reasonCode: "",
@@ -107,6 +117,28 @@ export function RcmReviewEditor(props: {
           {rows.filter((r) => r.status === "accepted" && r.disposition).length} with disposition
         </span>
       </div>
+      <p className="muted">
+        Demo order: semantic drift, frequency attribute, keyed miss. Accept requires a disposition.
+        <button
+          type="button"
+          style={{ marginLeft: 8 }}
+          onClick={() =>
+            setRows((rs) =>
+              rs.map((r) =>
+                r.status === "accepted" && !r.disposition
+                  ? {
+                      ...r,
+                      disposition: "retain",
+                      dispositionRationale: r.dispositionRationale || "Confirm as documented on both copies.",
+                    }
+                  : r,
+              ),
+            )
+          }
+        >
+          Fill remaining accepts as retain
+        </button>
+      </p>
 
       {visible.map((r) => (
         <div className={`finding ${r.status === "rejected" ? "rejected" : ""}`} key={r.finding.id}>
