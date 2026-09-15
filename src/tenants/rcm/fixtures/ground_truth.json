@@ -1,0 +1,152 @@
+[
+  {
+    "id": "gt-unmatched-ps-01",
+    "predicate": "unmatched_in_copy",
+    "iaDisplayId": "ITGC-PS-01",
+    "soxDisplayId": null,
+    "field": "displayId",
+    "iaValue": "ITGC-PS-01",
+    "soxValue": null,
+    "note": "Keyed miss: ITGC-PS-01 is in IA RCM and not in SOX RCM. A VLOOKUP on Ctrl# returns #N/A."
+  },
+  {
+    "id": "gt-desc-ac-02",
+    "predicate": "description_divergence",
+    "iaDisplayId": "ITGC-AC-02",
+    "soxDisplayId": "ITGC-AC-02",
+    "field": "description",
+    "iaValue": "Application owners recertify every privileged ID on the core, SWIFT gateway, and domain admin groups each calendar quarter. IDs not recertified by the due date are disabled by IT Operations the next business day.",
+    "soxValue": "Business owners confirm privileged IDs on the core and payment rails once a quarter. IDs that miss the window stay enabled until the next cycle unless Information Security objects.",
+    "note": "Same control, drifted wording. Quote is from the source cell."
+  },
+  {
+    "id": "gt-owner-ac-02",
+    "predicate": "attribute_mismatch",
+    "iaDisplayId": "ITGC-AC-02",
+    "soxDisplayId": "ITGC-AC-02",
+    "field": "owner",
+    "iaValue": "Elena Voss",
+    "soxValue": "Marcus Hale",
+    "note": "Owner drifted on the same control (Elena Voss vs Marcus Hale)."
+  },
+  {
+    "id": "gt-freq-cm-01",
+    "predicate": "attribute_mismatch",
+    "iaDisplayId": "ITGC-CM-01",
+    "soxDisplayId": "ITGC-CM-01",
+    "field": "frequency",
+    "iaValue": "Quarterly",
+    "soxValue": "Monthly",
+    "note": "Frequency field only. Quote both values. Do not claim test-frequency vs operating-frequency conflict."
+  },
+  {
+    "id": "gt-renumber-pe-01",
+    "predicate": "renumbered",
+    "iaDisplayId": "ITGC-PE-01",
+    "soxDisplayId": "ITGC-PE-01A",
+    "field": "displayId",
+    "iaValue": "ITGC-PE-01",
+    "soxValue": "ITGC-PE-01A",
+    "note": "Same control text, new SOX ID after a physical-access split."
+  },
+  {
+    "id": "gt-withdrawn-si-01",
+    "predicate": "withdrawn_still_tested",
+    "iaDisplayId": "ITGC-SI-01",
+    "soxDisplayId": "ITGC-SI-01",
+    "field": "status",
+    "iaValue": "withdrawn / not tested",
+    "soxValue": "active / tested",
+    "note": "IA withdrew malware/IDS control; SOX still tests it."
+  },
+  {
+    "id": "gt-owner-dir-sa-01",
+    "predicate": "owner_not_in_directory",
+    "iaDisplayId": "ITGC-SA-01",
+    "soxDisplayId": "ITGC-SA-01",
+    "field": "owner",
+    "iaValue": "Nora Patel",
+    "soxValue": "Jordan Keene, Contractor",
+    "note": "Jordan Keene is not in the Wrenbridge directory."
+  },
+  {
+    "id": "gt-unmapped-ir-01",
+    "predicate": "unmapped_control",
+    "iaDisplayId": "ITGC-IR-01",
+    "soxDisplayId": "ITGC-IR-01",
+    "field": "riskIds",
+    "iaValue": "RISK-IR-01",
+    "soxValue": "",
+    "note": "SOX incident-handling control has no risk mapping."
+  },
+  {
+    "id": "gt-dead-risk-ra-01",
+    "predicate": "dead_risk_mapping",
+    "iaDisplayId": "ITGC-RA-01",
+    "soxDisplayId": "ITGC-RA-01",
+    "field": "riskIds",
+    "iaValue": "RISK-VUL-01",
+    "soxValue": "RISK-GHOST",
+    "note": "SOX vulnerability control maps to a risk ID that is not on the register."
+  },
+  {
+    "id": "gt-stale-cp-02",
+    "predicate": "stale_review",
+    "iaDisplayId": "ITGC-CP-02",
+    "soxDisplayId": "ITGC-CP-02",
+    "field": "lastReviewedOn",
+    "iaValue": "2024-05-01",
+    "soxValue": "2024-05-01",
+    "note": "Last reviewed 2024-05-01; as-of 2026-06-01 is past the 365-day floor and after core_banking_conversion."
+  },
+  {
+    "id": "gt-fuzzy-cp-01",
+    "predicate": "needs_human_match",
+    "iaDisplayId": "ITGC-CP-01",
+    "soxDisplayId": "SOX-BCP-07",
+    "field": "displayId",
+    "iaValue": "ITGC-CP-01",
+    "soxValue": "SOX-BCP-07",
+    "note": "Different IDs, similar wording. Identity ladder flags for a human and does not auto-match."
+  },
+  {
+    "id": "gt-dup-ac-03",
+    "predicate": "duplicate_candidate",
+    "iaDisplayId": "ITGC-AC-03",
+    "soxDisplayId": "ITGC-AC-03-DUP",
+    "field": "description",
+    "iaValue": null,
+    "soxValue": "ITGC-AC-03 vs ITGC-AC-03-DUP",
+    "note": "Two SOX rows describe the same SOD control."
+  },
+  {
+    "id": "gt-changed-au-02",
+    "predicate": "changed_since_last_import",
+    "iaDisplayId": "ITGC-AU-02",
+    "soxDisplayId": "ITGC-AU-02",
+    "field": "description",
+    "iaValue": "Information Security reviews the SIEM dashboard of privileged use and failed access each week, documents the review, and opens an incident ticket for unexplained activity within one business day.",
+    "soxValue": "Information Security reviews the SIEM dashboard of privileged use and failed access each week, documents the review, and opens an incident ticket for unexplained activity within four business hours.",
+    "note": "SOX row hash changed since the prior import set. Source modified date is evidence; the clock is the hash."
+  },
+  {
+    "id": "gt-orphan-iss-204",
+    "predicate": "orphaned_issue",
+    "iaDisplayId": null,
+    "soxDisplayId": null,
+    "field": "controlDisplayId",
+    "iaValue": null,
+    "soxValue": "ITGC-OLD-99",
+    "note": "ISS-204 cites ITGC-OLD-99, which is on neither copy."
+  },
+  {
+    "id": "gt-risk-without-liq",
+    "predicate": "risk_without_control",
+    "iaDisplayId": null,
+    "soxDisplayId": null,
+    "field": "riskId",
+    "iaValue": null,
+    "soxValue": "RISK-LIQ-01",
+    "note": "RISK-LIQ-01 sits on the register with no mapped control."
+  }
+]

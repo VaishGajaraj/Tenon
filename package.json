@@ -11,6 +11,8 @@
     "test": "tsx --test tests/*.test.ts",
     "db:init": "tsx scripts/init-db.ts",
     "seed": "tsx scripts/seed.ts",
+    "seed:mitigation": "tsx scripts/seed-mitigation.ts",
+    "rcm:generate": "tsx scripts/rcm-generate.ts",
     "worker": "tsx scripts/worker.ts",
     "learn": "tsx scripts/learn.ts",
     "metrics": "tsx scripts/metrics.ts",

@@ -17,9 +17,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="brand">TENON</span>
             <nav>
               <Link href="/">Dashboard</Link>
+              <Link href="/recon">RCM recon</Link>
               <Link href="/work">Work queue</Link>
               <Link href="/intake">New intake</Link>
             </nav>
+            <span className="mock-badge" title="Public-domain demo data — not a client file">
+              MOCK
+            </span>
           </div>
           {children}
         </div>

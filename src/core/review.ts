@@ -44,6 +44,30 @@ export async function deliverReview(payload: unknown): Promise<{ itemId: number 
     }
   }
 
+  if (def.persistRejectedFlags) {
+    const rejectedIds = p.corrections
+      .filter((c) => c.kind === "reject")
+      .map((c) => /findings\[id=([^\]]+)\]/.exec(c.targetPath)?.[1])
+      .filter((id): id is string => !!id);
+    const persisted = new Set((p.final.rejectedFlags ?? []).map((f) => f.id));
+    for (const id of rejectedIds) {
+      if (!persisted.has(id)) {
+        throw new Error("rejected flags must remain on the workpaper (rejected-flags tab is never deleted)");
+      }
+    }
+  }
+  if (def.dispositions?.length) {
+    const allowed = new Set(def.dispositions);
+    for (const f of p.final.findings) {
+      if (!f.disposition || !allowed.has(f.disposition)) {
+        throw new Error(`accept requires a disposition (${def.dispositions.join(" | ")})`);
+      }
+      if (!f.dispositionRationale?.trim()) {
+        throw new Error("accept requires a one-sentence rationale");
+      }
+    }
+  }
+
   // Server-derived metrics: a number reported by the party being measured is
   // not evidence, and these numbers are the product's proof.
   const rejected = p.corrections.filter((c) => c.kind === "reject").length;

@@ -52,6 +52,14 @@ export async function draftWith(
 ): Promise<{ output: DraftOutput; model: string; mocked: boolean; usage: unknown }> {
   const def = getSku(tenant, sku);
   const parsed = def.inputSchema.parse(input);
+  if (def.deterministicDraft) {
+    return {
+      output: def.deterministicDraft(parsed, pv),
+      model: "predicates",
+      mocked: !hasRealModel(),
+      usage: null,
+    };
+  }
   if (!hasRealModel()) {
     return { output: def.mockDraft(parsed, pv), model: "mock", mocked: true, usage: null };
   }
