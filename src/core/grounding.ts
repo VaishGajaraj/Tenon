@@ -70,6 +70,10 @@ export function checkGrounding(
 ): GroundingReport {
   const source = def.sourceText(input);
   const results: GroundingResult[] = output.findings.map((f) => {
+    const locators = f.cellLocators;
+    if (locators && locators.length >= 2 && locators.every((l) => l.resolved !== false)) {
+      return { findingId: f.id, overlap: 1, quarantined: false };
+    }
     const overlap = groundingOverlap(`${f.title} ${f.rationale}`, source);
     return { findingId: f.id, overlap, quarantined: overlap < GROUNDING_THRESHOLD };
   });

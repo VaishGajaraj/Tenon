@@ -153,6 +153,51 @@ async function main() {
         false,
       );
     }
+
+    if (tenant === "rcm") {
+      const mechRuns = (runs as any[]).filter((r) => r.runs.output?.mechanisms);
+      const mech = mechRuns[0]?.runs.output?.mechanisms;
+      const named = (mech?.namedCopies ?? []).join(", ");
+      line("MOCK data mode (not REAL / not a client)", String(mech?.dataMode ?? "unseen"), mech?.dataMode === "MOCK");
+      line("named copies (not Dataset A/B)", named || "unseen", named.includes("IA RCM") && named.includes("SOX RCM"));
+      const ladder = mech?.identityLadder;
+      line(
+        "identity ladder rungs fired",
+        ladder
+          ? `record_id=${ladder.record_id} display_id=${ladder.display_id} content_hash=${ladder.content_hash} fuzzy_flagged=${ladder.fuzzy_flagged} auto_fuzzy=${ladder.autoMatchedFuzzy}`
+          : "unseen",
+        !!ladder && ladder.record_id > 0 && ladder.display_id > 0 && ladder.content_hash > 0 && ladder.fuzzy_flagged > 0 && ladder.autoMatchedFuzzy === 0,
+      );
+      const fired = mech?.predicatesFired ?? [];
+      line("predicates that actually fired", fired.length ? fired.join(", ") : "none", fired.length >= 10);
+      line(
+        "frequency as attribute_mismatch (both quotes)",
+        String(mech?.frequencyAsAttributeMismatch ?? 0),
+        (mech?.frequencyAsAttributeMismatch ?? 0) > 0,
+      );
+      line(
+        "test-vs-operating-frequency predicate absent",
+        mech ? String(!mech.testVsOperatingFrequencyPredicate) : "unseen",
+        mech ? mech.testVsOperatingFrequencyPredicate === false : false,
+      );
+      line(
+        "unresolved evidence quarantined (not rendered)",
+        String(mech?.quarantinedUnresolvedEvidence ?? "unseen"),
+        mech?.quarantinedUnresolvedEvidence != null,
+      );
+      line("import clock is row hash (not wall clock)", String(mech?.importSetRowHashes ?? false), !!mech?.importSetRowHashes);
+      const gt = (mech?.groundTruthScore ?? []) as { predicate: string; recall: number | null; precision: number | null }[];
+      const gtOk = gt.length > 0 && gt.every((s) => s.recall === 1);
+      line("ground_truth recall on manufactured set", gtOk ? "all predicates recall=1" : "missing or incomplete", gtOk);
+      const del = (dels as any[])[0]?.d?.final;
+      const hasDisp = (del?.findings ?? []).some((f: any) => f.disposition);
+      const rejectedN = (del?.rejectedFlags ?? []).length;
+      line("dispositions recorded on accepted flags", hasDisp ? "yes" : "no — run the demo review", hasDisp);
+      line("rejected flags persisted (never deleted)", String(rejectedN), rejectedN > 0);
+      line("workpaper mode MOCK", String(del?.workpaper?.mode ?? del?.mode ?? "unseen"), (del?.workpaper?.mode ?? del?.mode) === "MOCK");
+      const narrative = String(del?.narrative ?? (runs as any[])[0]?.runs.output?.narrative ?? "");
+      line("committee delta from code counts", narrative.includes("code-computed") ? "yes" : "no", narrative.includes("code-computed"));
+    }
   }
   console.log(
     "\nA mechanism that has never fired is a claim you cannot make. Re-run after every batch.\n",

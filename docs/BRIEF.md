@@ -1,6 +1,6 @@
 # Tenon — Product Brief
 
-*The canonical document. Replaces reading the eight research docs; links to them where depth is needed. Last updated Aug 26, 2026.*
+*The canonical document as of Aug 26, 2026. **Demo path as of Sept 2026:** MOCK RCM reconciliation (`rcm/recon`) — see the README. The mitigation-supplement act-one below is legacy scaffold and is not the product being demoed.*
 
 ---
 

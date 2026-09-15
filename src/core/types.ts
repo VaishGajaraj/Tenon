@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+export const CellLocator = z.object({
+  copy: z.string(),
+  sheet: z.string(),
+  row: z.number(),
+  column: z.string(),
+  quote: z.string().nullable().optional(),
+  resolved: z.boolean().optional(),
+  note: z.string().optional(),
+});
+export type CellLocator = z.infer<typeof CellLocator>;
+
 /** A single flagged item in a deliverable draft. */
 export const Finding = z.object({
   id: z.string(), // stable within a run, e.g. "f1"
@@ -9,6 +20,17 @@ export const Finding = z.object({
   citation: z.string(), // e.g. "IICRC S500 12.2.12" or "IRC R905.2.8.5"
   estimatedValueUsd: z.tuple([z.number(), z.number()]).nullable(), // [low, high]
   confidence: z.enum(["high", "medium", "low"]),
+  /** RCM: which TypeScript predicate emitted this flag. */
+  predicate: z.string().optional(),
+  cellLocators: z.array(CellLocator).optional(),
+  quotes: z
+    .object({ left: z.string().optional(), right: z.string().optional() })
+    .optional(),
+  iaDisplayId: z.string().nullable().optional(),
+  soxDisplayId: z.string().nullable().optional(),
+  field: z.string().nullable().optional(),
+  disposition: z.string().optional(),
+  dispositionRationale: z.string().optional(),
 });
 export type Finding = z.infer<typeof Finding>;
 
@@ -17,6 +39,21 @@ export const DraftOutput = z.object({
   findings: z.array(Finding),
   narrative: z.string(),
   selfCheckNotes: z.array(z.string()).default([]),
+  rejectedFlags: z.array(Finding).optional(),
+  copies: z
+    .array(z.object({ name: z.string(), rowCount: z.number(), sheet: z.string().optional() }))
+    .optional(),
+  committeeCounts: z.unknown().optional(),
+  workpaper: z
+    .object({
+      preparer: z.string(),
+      reviewer: z.string(),
+      date: z.string(),
+      mode: z.enum(["MOCK", "REAL"]),
+    })
+    .optional(),
+  mode: z.enum(["MOCK", "REAL"]).optional(),
+  mechanisms: z.unknown().optional(),
 });
 export type DraftOutput = z.infer<typeof DraftOutput>;
 
@@ -82,6 +119,15 @@ export interface SkuDef {
   reasonCodes: ReasonCode[];
   /** Finding categories for this SKU. */
   categories: string[];
+  /** When set, accept requires a disposition from this closed list. */
+  dispositions?: string[];
+  /** When true, rejected findings must remain on final.rejectedFlags. */
+  persistRejectedFlags?: boolean;
+  /**
+   * If set, drafting uses this instead of the LLM. Predicates and identity
+   * live here; the model is not the source of flags.
+   */
+  deterministicDraft?: (input: any, pv: PromptSnapshot) => DraftOutput;
   /** Version 1 system prompt (seeded into prompt_versions on init). */
   systemPromptV1: string;
   /** Renders the user message for a given validated input. */

@@ -1,12 +1,12 @@
 /**
- * Demo: simulate a reviewer rejecting one ungrounded finding and delivering.
- * Goes through the real submitReview path so the demo exercises validation,
- * the transaction, and server-side metric derivation — not a shortcut around them.
+ * Demo: accept one RCM flag (disposition + rationale) and reject one (reason
+ * code). Goes through deliverReview so rejected flags persist on the workpaper.
  */
 import { eq, desc } from "drizzle-orm";
 import { getDb, schema } from "../src/db/client";
 import { deliverReview } from "../src/core/review";
 import { DraftOutput } from "../src/core/types";
+import { finalizeRcmDraft } from "../src/tenants/rcm/review";
 
 async function main() {
   const db = await getDb();
@@ -14,12 +14,13 @@ async function main() {
     .select()
     .from(schema.workItems)
     .where(eq(schema.workItems.status, "in_review"));
-  if (items.length === 0) {
-    console.log("no items in review — run `pnpm seed && pnpm worker` first");
+  const rcm = items.filter((i) => i.tenant === "rcm");
+  if (rcm.length === 0) {
+    console.log("no RCM items in review — run `pnpm seed && pnpm worker` first");
     process.exit(0);
   }
   let reviewed = 0;
-  for (const item of items) {
+  for (const item of rcm) {
     const [run] = await db
       .select()
       .from(schema.runs)
@@ -28,28 +29,53 @@ async function main() {
       .limit(1);
     if (!run) continue;
     const draft = DraftOutput.parse(run.output);
-    const target = draft.findings.find((f) => /containment/i.test(f.title));
-    if (!target) continue;
-
+    const accept =
+      draft.findings.find((f) => f.predicate === "description_divergence") ?? draft.findings[0];
+    const reject =
+      draft.findings.find((f) => f.predicate === "unmatched_in_copy") ??
+      draft.findings.find((f) => f.id !== accept.id)!;
+    const input = item.input as { preparer?: string; reviewer?: string; asOf?: string };
+    const { final, corrections, error } = finalizeRcmDraft(
+      draft,
+      [
+        {
+          finding: accept,
+          status: "accepted",
+          disposition: "update",
+          dispositionRationale: "Align SOX control language and owner to the IA cell.",
+        },
+        {
+          finding: reject,
+          status: "rejected",
+          reasonCode: "false_positive_match",
+          note: "SOX scopes this control on a different inventory.",
+        },
+        ...draft.findings
+          .filter((f) => f.id !== accept.id && f.id !== reject.id)
+          .map((f) => ({
+            finding: f,
+            status: "accepted" as const,
+            disposition: "retain" as const,
+            dispositionRationale: "Confirm as documented on both copies for the MOCK demo.",
+          })),
+      ],
+      {
+        preparer: input.preparer || "A. Sample, Internal Audit",
+        reviewer: input.reviewer || "B. Sample, SOX PMO",
+        date: input.asOf || "2026-06-01",
+      },
+    );
+    if (error) throw new Error(error);
     await deliverReview({
       itemId: item.id,
       runId: run.id,
-      corrections: [
-        {
-          targetPath: `findings[id=${target.id}]`,
-          kind: "reject",
-          reasonCode: "not_supported_by_docs",
-          before: target,
-          after: null,
-          note: "photos referenced but not attached to this claim file",
-        },
-      ],
-      final: { ...draft, findings: draft.findings.filter((f) => f.id !== target.id) },
-      reviewSeconds: 420,
+      corrections,
+      final,
+      reviewSeconds: 480,
     });
     reviewed++;
   }
-  console.log(`demo review: rejected the containment finding on ${reviewed} item(s) and delivered them`);
+  console.log(`demo review: accepted one flag (update) and rejected one (false_positive_match) on ${reviewed} RCM item(s)`);
   process.exit(0);
 }
 

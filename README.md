@@ -1,75 +1,79 @@
 # Tenon
 
-> **Start here:** [`docs/BRIEF.md`](docs/BRIEF.md) — what this is, why, where it stands, and what happens next.
+> **Start here (act-one demo):** MOCK RCM reconciliation — IA RCM vs SOX RCM on public-domain bank language. Not a client file. The mitigation supplement tenant is **legacy scaffold**; do not present it as the product.
 
 **The delivery harness for AI-native service companies — without hiring AI engineers.**
 
-If your company does the work (claims, contracts, closes, audits) with AI plus expert review,
-you end up building the same stack every time: orchestration glue, an eval harness, a review
-UI for your domain professionals, observability wiring, and some way to learn from corrections.
-Tenon consolidates that into one framework so a small team ships it in a day instead of
-stitching LangChain + Grafana + an eval vendor + a homegrown review queue:
+This PR adds tenant `rcm/recon` on the existing SKU-as-config harness (review queue, learn loop, selfcheck, embedded PGlite). It does not rewrite the harness and does not revive mitigation supplements.
 
-- **SKU-as-config** — define a deliverable type in one file (input schema, prompt, reason codes,
-  rubric); the pipeline, UI, and learning loop come for free
-- **A real review queue** — your accountant/lawyer/analyst edits work product in place, rejects
-  with reason codes, adds what the AI missed; approval-gates are not review
-- **Corrections → learning** — every correction becomes a regression test; prompt versions are
-  immutable and promoted only through a strict eval gate; the headline metric is
-  **corrections per 100 deliverables, falling**
-- **Built-in run telemetry** — model, tokens, latency, and review time recorded per deliverable;
-  no external observability stack required to start
-- **Runs offline** — embedded database + mock model mode; demo the whole loop with zero setup
-
-Reference tenant included: a claims-documentation service for water/fire mitigation contractors
-(`mitigation/supplement-review`). Adding your own service = one new `SkuDef` file.
-
-## Quick start (zero setup — embedded DB, mock model)
+## MOCK RCM demo (zero setup)
 
 ```bash
 pnpm install
-pnpm db:init     # creates tables (embedded PGlite in ./.tenon-data) + seeds prompt v1
-pnpm seed        # one synthetic water-loss claim
-pnpm worker      # drafts intake items (mock mode without ANTHROPIC_API_KEY)
-pnpm dev         # http://localhost:3000 — review the draft, reject/edit/add findings
-pnpm learn       # corrections -> eval cases + proposed prompt version
-pnpm learn --promote  # eval-gate the proposal against the active version, promote if better
-pnpm selfcheck   # does each mechanism actually fire?
-pnpm metrics     # corrections/100, finding precision (Gate-3 kill line: 80%), review time
+pnpm db:init          # tables + prompt v1 per SKU (embedded PGlite in ./.tenon-data)
+pnpm seed             # Wrenbridge Community Bank — IA RCM vs SOX RCM
+pnpm worker           # TypeScript predicates over the fact table (not model prose)
+pnpm dev              # http://localhost:3000/recon — MOCK badge, then two named copies, then flags
 ```
 
-Real drafting: copy `.env.example` → `.env.local`, set `ANTHROPIC_API_KEY`.
-Real Postgres: `docker compose up -d` and set `DATABASE_URL`.
+In the UI:
 
-## The loop (why this exists)
+1. Confirm the **MOCK** badge before the matrix opens (`/recon` shows IA RCM and SOX RCM cards).
+2. Open the flag matrix. Acknowledge the keyed miss (`ITGC-PS-01`, VLOOKUP-class). Open the semantic flag (same control, drifted wording/owner, quoted cell). Open the frequency flag (both values quoted as an attribute diff).
+3. Accept one flag: disposition + one-sentence rationale. Reject one: reason code. Deliver.
+4. Export `.xlsx` (preparer, reviewer, date, rejected-flags tab). Read the committee delta (code-computed counts).
+
+Optional, to fire selfcheck review lines without clicking:
+
+```bash
+pnpm demo             # accept one + reject one through the real deliver path
+pnpm selfcheck        # a line per mechanism that actually fired — do not claim one that is ✗
+```
+
+Regenerate the two copies and `ground_truth.json` (exact per-predicate P/R):
+
+```bash
+pnpm rcm:generate     # writes src/tenants/rcm/fixtures/
+```
+
+Legacy mitigation seed (not the demo path): `pnpm seed:mitigation`.
+
+Real drafting / real Postgres: copy `.env.example` → `.env.local`. RCM flags still come from TypeScript predicates; the model is not the source of the matrix. MOCK vs REAL on the workpaper is **data mode** (this tenant is always MOCK public-domain).
+
+## What the RCM tenant does
+
+- Canonical library in bank language, rewritten from NIST 800-53 / FISCAM ITGCs / FDIC RMS topics. Institution: **Wrenbridge Community Bank, N.A.** (fictional; FDIC BankFind `NAME:"Wrenbridge"` returned 0 hits on 2026-09-15).
+- A generator produces **IA RCM** and **SOX RCM** and records every divergence in `ground_truth.json`.
+- Column maps ingest each workbook onto a canonical schema. Import sets are keyed by **row hash** (source modified dates are evidence; the wall clock is not the import clock).
+- Identity ladder: same-system record id → normalized display id → content hash → fuzzy similarity **flagged for a human, never auto-matched**.
+- Fourteen TypeScript predicates. Each flag has two cell locators; unresolved evidence is quarantined and not rendered. Frequency mismatch is `attribute_mismatch` quoting both values — there is no test-vs-operating-frequency conflict predicate.
+- Accept requires a disposition (`retain | merge | automate | re-designate | retire | re-own | update`) plus a one-sentence rationale. Reject requires a closed reason code. Rejected rows land on a **rejected-flags** tab that is never deleted.
+- Committee delta is arithmetic over counts, not model prose.
+
+## The loop (harness)
 
 1. **Intake** → work item (`intake`)
-2. **Draft** — active prompt version + SKU config → findings + narrative, self-checked (`in_review`)
-3. **Review** — expert edits in place, rejects with a reason code, adds what the AI missed.
-   Reason codes are mandatory on every change: they are the training signal.
-4. **Deliver** — final package + review seconds + acceptance counts recorded (`delivered`)
-5. **Learn** — corrections become eval cases (regression suite); a reflection pass proposes a
-   new immutable prompt version; the **eval gate** must pass before promotion; rollback = re-activate
-   the parent version.
+2. **Draft** — RCM: predicates + identity. Other SKUs: active prompt version + SKU config.
+3. **Review** — expert edits in place, rejects with a reason code (RCM: dispositions on accept).
+4. **Deliver** — final package + review seconds + acceptance counts (`delivered`)
+5. **Learn** — corrections become eval cases; prompt versions are immutable and eval-gated.
 
 Headline metric: **corrections per 100 deliverables** — it should fall.
-Kill line (Gate 3): **finding precision ≥ 80%** (reviewers reject less than 1 in 5 flags).
 
 ## Layout
 
 ```
 src/core       types, SKU registry, metrics
 src/db         drizzle schema, dual driver (Postgres | embedded PGlite), DDL
-src/ai         thin provider adapter (no framework — deliberate), draft runner
+src/ai         thin provider adapter, draft runner
 src/learn      mine -> propose -> eval gate -> promote
-src/tenants    one folder per tenant; a tenant is just SkuDef files
-app            Next.js: dashboard, intake, work queue, review UI
-scripts        init-db, seed, worker, learn, metrics
+src/tenants    rcm/ (act-one demo) · mitigation/ (legacy scaffold)
+app            Next.js: dashboard, /recon, intake, work queue, review UI, xlsx export
+scripts        init-db, seed, seed-mitigation, worker, learn, metrics, rcm-generate
 docs/SPEC.md   architecture + ADRs + roadmap
+docs/BRIEF.md  historical product brief (mitigation-first; superseded as the demo path)
 ```
 
-## Honest limits of this scaffold (see SPEC §8)
+## Honest limits
 
-Single reviewer, no auth; text-paste intake (PDF extraction is a listed next step); the eval
-grader is string-inclusion in mock mode and model-graded only with a key; the reflection step
-is capped and eval-gated but still v1. These are scoped, not forgotten.
+No mapper UI, no PDF ingest, no auth/RLS, no hash chain, no team sync, no Linkage Memo SKU, no GEPA-as-demo-story. Single reviewer. Eval grader is string-inclusion in mock mode. See SPEC §8.

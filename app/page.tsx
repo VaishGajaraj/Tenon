@@ -18,7 +18,8 @@ export default async function Dashboard() {
     <main>
       <h1>Delivery dashboard</h1>
       <p className="muted">
-        Trailing 30 days. The harness exists to make <b>corrections per 100</b> fall{" "}
+        Trailing 30 days. Act-one demo is <a href="/recon">MOCK RCM recon</a> (IA RCM vs SOX RCM).
+        The harness exists to make <b>corrections per 100</b> fall{" "}
         <i>while findings per deliverable holds</i> — a quieter model is not a better one.
       </p>
       {metrics.map((m, i) => (
