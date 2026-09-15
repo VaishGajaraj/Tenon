@@ -20,7 +20,7 @@ In the UI:
 
 1. Confirm the **MOCK** badge before the matrix opens (`/recon` shows IA RCM and SOX RCM cards).
 2. Open the flag matrix. Acknowledge the keyed miss (`ITGC-PS-01`, VLOOKUP-class). Open the semantic flag (same control, drifted wording/owner, quoted cell). Open the frequency flag (both values quoted as an attribute diff).
-3. Accept one flag: disposition + one-sentence rationale. Reject one: reason code. Deliver.
+3. Accept one flag: disposition + one-sentence rationale. Reject one: reason code. Use **Fill remaining accepts as retain** so the rest of the matrix does not stall the 10-minute walkthrough. Deliver.
 4. Export `.xlsx` (preparer, reviewer, date, rejected-flags tab). Read the committee delta (code-computed counts).
 
 Optional, to fire selfcheck review lines without clicking:
