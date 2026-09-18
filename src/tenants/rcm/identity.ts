@@ -60,7 +60,11 @@ function take<T>(arr: T[], i: number): T {
   return arr.splice(i, 1)[0];
 }
 
-export function identityLadder(ia: FactRow[], sox: FactRow[]): LadderResult {
+export function identityLadder(
+  ia: FactRow[],
+  sox: FactRow[],
+  opts?: { pairScore?: (ia: FactRow, sox: FactRow) => number },
+): LadderResult {
   const iaLeft = [...ia];
   const soxLeft = [...sox];
   const auto: AutoMatch[] = [];
@@ -102,9 +106,12 @@ export function identityLadder(ia: FactRow[], sox: FactRow[]): LadderResult {
   const iaUsed = new Set<string>();
   const soxUsed = new Set<string>();
   const candidates: FuzzyProposal[] = [];
+  const pairScore =
+    opts?.pairScore ??
+    ((a: FactRow, b: FactRow) => similarity(`${a.title} ${a.description}`, `${b.title} ${b.description}`));
   for (const a of iaLeft) {
     for (const b of soxLeft) {
-      const score = similarity(`${a.title} ${a.description}`, `${b.title} ${b.description}`);
+      const score = pairScore(a, b);
       if (score >= FUZZY_FLAG_THRESHOLD) {
         candidates.push({ method: "fuzzy", ia: a, sox: b, score });
       }
