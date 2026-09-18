@@ -49,6 +49,7 @@ test("generator records a ground-truth entry for every predicate", () => {
   assert.equal(u.ia.copyName, "IA RCM");
   assert.equal(u.sox.copyName, "SOX RCM");
   assert.ok(!/Dataset [AB]/i.test(u.ia.copyName));
+  assert.ok(u.ia.rows.length >= 50, `IA rows ${u.ia.rows.length} should reflect the bank-grade library`);
 });
 
 test("column-map ingest preserves named copies and uses row hashes as the clock", () => {

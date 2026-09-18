@@ -1,31 +1,20 @@
 /**
  * Canonical control library for the MOCK RCM demo.
  *
- * Language is bank ITGC / SOX, rewritten from public-domain control families
- * (NIST SP 800-53, FISCAM ITGCs, FDIC RMS IT examination topics). Text is not
- * a copy of any institution's RCM and is not a substitute for those catalogs.
+ * Language is bank ITGC / SOX / BSA / ICFR, rewritten from public-domain
+ * control families (NIST SP 800-53 OSCAL-shaped IDs, FISCAM ITGCs, FDIC RMS,
+ * OCC handbooks, FFIEC IT Handbook topics, 12 CFR Part 363). Text is not a
+ * copy of any institution's RCM and is not a substitute for those catalogs.
  *
  * Institution: Wrenbridge Community Bank, N.A. — fictional. Checked against
- * the FDIC BankFind API (NAME:"Wrenbridge") on 2026-09-15: 0 institutions.
+ * the FDIC BankFind API (NAME:"Wrenbridge") on 2026-09-15 (0 hits) and again
+ * on 2026-09-18 (meta.total=0, data=[]).
  */
 
-export interface CanonicalControl {
-  canonicalId: string;
-  displayId: string;
-  nistFamily: string;
-  catalog: "NIST 800-53" | "FISCAM ITGC" | "FDIC RMS";
-  title: string;
-  description: string;
-  owner: string;
-  frequency: string;
-  riskIds: string[];
-  status: "active" | "withdrawn";
-  tested: boolean;
-  lastReviewedOn: string;
-  sourceModifiedOn: string;
-  issueId: string | null;
-  issueStatus: string | null;
-}
+import { BANK_GRADE_CONTROLS, BANK_GRADE_DIRECTORY, BANK_GRADE_RISKS } from "./library-bank";
+import type { CanonicalControl } from "./schema";
+export type { CanonicalControl, ControlCatalog } from "./schema";
+export { BANK_GRADE_CONTROLS };
 
 export const DIRECTORY = [
   { name: "Priya Nandakumar", title: "CISO", email: "priya.nandakumar@wrenbridge.example" },
@@ -40,6 +29,7 @@ export const DIRECTORY = [
   { name: "James Whitaker", title: "Facilities", email: "james.whitaker@wrenbridge.example" },
   { name: "Nora Patel", title: "Vendor Management", email: "nora.patel@wrenbridge.example" },
   { name: "Chris Molina", title: "GL Accounting", email: "chris.molina@wrenbridge.example" },
+  ...BANK_GRADE_DIRECTORY,
 ] as const;
 
 export const RISKS = [
@@ -55,9 +45,10 @@ export const RISKS = [
   { riskId: "RISK-VUL-01", title: "Unpatched infrastructure exposed to known defects", owner: "Hannah Briggs" },
   { riskId: "RISK-IR-01", title: "Security incident not contained or reported", owner: "Priya Nandakumar" },
   { riskId: "RISK-HR-01", title: "Access retained after employee departure", owner: "Elena Voss" },
+  ...BANK_GRADE_RISKS,
 ] as const;
 
-export const CANONICAL_CONTROLS: CanonicalControl[] = [
+const ITGC_CLASSICS: CanonicalControl[] = [
   {
     canonicalId: "canon-ac-01",
     displayId: "ITGC-AC-01",
@@ -473,6 +464,9 @@ export const CANONICAL_CONTROLS: CanonicalControl[] = [
     issueStatus: null,
   },
 ];
+
+/** Full MOCK library: ITGC classics plus ICFR / BSA / payments / extra ITGCs. */
+export const CANONICAL_CONTROLS: CanonicalControl[] = [...ITGC_CLASSICS, ...BANK_GRADE_CONTROLS];
 
 export const TRIGGERS = [
   { name: "core_banking_conversion", date: "2025-03-15" },

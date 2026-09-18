@@ -16,6 +16,10 @@ pnpm worker           # TypeScript predicates over the fact table (not model pro
 pnpm dev              # http://localhost:3000/recon — MOCK badge, then two named copies, then flags
 ```
 
+The seeded library is mid-size-bank shaped (ITGC + ICFR/Part 363 + BSA/AML + wires/ACH + extra NIST-family ITGCs rewritten into bank language). Wrenbridge is fictional; FDIC BankFind `NAME:"Wrenbridge"` returned 0 hits on 2026-09-15 and again on 2026-09-18.
+
+**File drop (still MOCK, still offline):** on `/recon`, drop IA + SOX `.xlsx`/`.csv` (optional third RCSA). Preset maps: generic RCM and AuditBoard-ish export columns — see `docs/PRESET-COLUMN-MAPS.md`. No mapper UI. Sample files: `/recon/samples/ia.xlsx`, `sox.xlsx`, `sox-auditboard.csv`. Live AuditBoard API and production client secrets are out of scope.
+
 In the UI:
 
 1. Confirm the **MOCK** badge before the matrix opens (`/recon` shows IA RCM and SOX RCM cards).
@@ -30,7 +34,7 @@ pnpm demo             # accept one + reject one through the real deliver path
 pnpm selfcheck        # a line per mechanism that actually fired — do not claim one that is ✗
 ```
 
-Regenerate the two copies and `ground_truth.json` (exact per-predicate P/R):
+Regenerate the two copies, `ground_truth.json`, and sample spreadsheets (exact per-predicate P/R):
 
 ```bash
 pnpm rcm:generate     # writes src/tenants/rcm/fixtures/
@@ -42,7 +46,7 @@ Real drafting / real Postgres: copy `.env.example` → `.env.local`. RCM flags s
 
 ## What the RCM tenant does
 
-- Canonical library in bank language, rewritten from NIST 800-53 / FISCAM ITGCs / FDIC RMS topics. Institution: **Wrenbridge Community Bank, N.A.** (fictional; FDIC BankFind `NAME:"Wrenbridge"` returned 0 hits on 2026-09-15).
+- Canonical library in bank language, rewritten from NIST 800-53 / FISCAM ITGCs / FDIC RMS / OCC / Part 363 / FFIEC topics. Institution: **Wrenbridge Community Bank, N.A.** (fictional; FDIC BankFind `NAME:"Wrenbridge"` returned 0 hits on 2026-09-15 and 2026-09-18).
 - A generator produces **IA RCM** and **SOX RCM** and records every divergence in `ground_truth.json`.
 - Column maps ingest each workbook onto a canonical schema. Import sets are keyed by **row hash** (source modified dates are evidence; the wall clock is not the import clock).
 - Identity ladder: same-system record id → normalized display id → content hash → fuzzy similarity **flagged for a human, never auto-matched**.

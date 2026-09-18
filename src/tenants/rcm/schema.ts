@@ -6,13 +6,42 @@ export const DEMO_BANK = {
   fictional: true,
   bankfindCheck: {
     queried: 'FDIC BankFind API institutions?filters=NAME:"Wrenbridge"',
-    asOf: "2026-09-15",
+    asOf: "2026-09-18",
+    priorCheck: "2026-09-15",
     hits: 0,
   },
 } as const;
 
 export const COPY_IA = "IA RCM";
 export const COPY_SOX = "SOX RCM";
+export const COPY_RCSA = "RCSA";
+
+export type ControlCatalog =
+  | "NIST 800-53"
+  | "FISCAM ITGC"
+  | "FDIC RMS"
+  | "OCC"
+  | "FFIEC"
+  | "Part 363"
+  | "COSO ICFR";
+
+export interface CanonicalControl {
+  canonicalId: string;
+  displayId: string;
+  nistFamily: string;
+  catalog: ControlCatalog;
+  title: string;
+  description: string;
+  owner: string;
+  frequency: string;
+  riskIds: string[];
+  status: "active" | "withdrawn";
+  tested: boolean;
+  lastReviewedOn: string;
+  sourceModifiedOn: string;
+  issueId: string | null;
+  issueStatus: string | null;
+}
 
 export const DISPOSITIONS = [
   "retain",
@@ -143,6 +172,26 @@ export const RawWorkbook = z.object({
 });
 export type RawWorkbook = z.infer<typeof RawWorkbook>;
 
+export const QuarantinedRow = z.object({
+  copy: z.string(),
+  sheet: z.string(),
+  excelRow: z.number().int(),
+  reason: z.string(),
+  raw: z.record(z.string()),
+});
+export type QuarantinedRow = z.infer<typeof QuarantinedRow>;
+
+export const IngestReport = z.object({
+  source: z.enum(["seed", "file-drop"]),
+  maps: z.object({
+    ia: z.string(),
+    sox: z.string(),
+    rcsa: z.string().optional(),
+  }),
+  quarantined: z.array(QuarantinedRow),
+});
+export type IngestReport = z.infer<typeof IngestReport>;
+
 export const ReconUniverse = z.object({
   bankName: z.string(),
   asOf: z.string(),
@@ -150,11 +199,14 @@ export const ReconUniverse = z.object({
   ia: RawWorkbook,
   sox: RawWorkbook,
   priorSox: RawWorkbook,
+  /** Optional third named copy (RCSA / IT GRC extract). Ingested; pairwise predicates remain IA↔SOX. */
+  rcsa: RawWorkbook.optional(),
   directory: z.array(DirectoryPerson),
   risks: z.array(RiskRecord),
   issues: z.array(IssueRecord),
   triggers: z.array(TriggerEvent),
   groundTruth: z.array(GroundTruthEntry),
+  ingestReport: IngestReport.optional(),
 });
 export type ReconUniverse = z.infer<typeof ReconUniverse>;
 
