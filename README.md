@@ -32,7 +32,10 @@ Optional, to fire selfcheck review lines without clicking:
 ```bash
 pnpm demo             # accept one + reject one through the real deliver path
 pnpm selfcheck        # a line per mechanism that actually fired — do not claim one that is ✗
+pnpm build            # production Next.js build (must stay green)
 ```
+
+Co-source workflow next to Excel/AuditBoard: `docs/WORKFLOW-INTEGRATION.md`.
 
 Regenerate the two copies, `ground_truth.json`, and sample spreadsheets (exact per-predicate P/R):
 
@@ -80,4 +83,4 @@ docs/BRIEF.md  historical product brief (mitigation-first; superseded as the dem
 
 ## Honest limits
 
-No mapper UI, no PDF ingest, no auth/RLS, no hash chain, no team sync, no Linkage Memo SKU, no GEPA-as-demo-story. Single reviewer. Eval grader is string-inclusion in mock mode. See SPEC §8.
+No mapper UI, no PDF ingest, no auth/RLS, no hash chain, no team sync, no Linkage Memo SKU, no GEPA-as-demo-story, **no AuditBoard API plugin**. Single reviewer. Eval grader is string-inclusion in mock mode. See SPEC §8 and `docs/WORKFLOW-INTEGRATION.md`.

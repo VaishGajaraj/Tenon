@@ -49,11 +49,16 @@ export function RcmReviewEditor(props: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(0);
+  const PAGE = 8;
 
-  const visible = useMemo(
+  const visibleAll = useMemo(
     () => (filter === "all" ? rows : rows.filter((r) => r.finding.predicate === filter)),
     [rows, filter],
   );
+  const pageCount = Math.max(1, Math.ceil(visibleAll.length / PAGE));
+  const safePage = Math.min(page, pageCount - 1);
+  const visible = visibleAll.slice(safePage * PAGE, safePage * PAGE + PAGE);
   const predicates = useMemo(
     () => [...new Set(rows.map((r) => r.finding.predicate).filter(Boolean))] as string[],
     [rows],
@@ -103,7 +108,14 @@ export function RcmReviewEditor(props: {
       <div className="row" style={{ marginBottom: 12 }}>
         <label style={{ margin: 0 }}>
           Filter
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: "auto", marginLeft: 8 }}>
+          <select
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value);
+              setPage(0);
+            }}
+            style={{ width: "auto", marginLeft: 8 }}
+          >
             <option value="all">all flags ({rows.length})</option>
             {predicates.map((p) => (
               <option key={p} value={p}>
@@ -115,6 +127,8 @@ export function RcmReviewEditor(props: {
         <span className="muted">
           {rows.filter((r) => r.status === "rejected").length} to reject ·{" "}
           {rows.filter((r) => r.status === "accepted" && r.disposition).length} with disposition
+          {" · "}
+          showing {visibleAll.length === 0 ? 0 : safePage * PAGE + 1}–{Math.min((safePage + 1) * PAGE, visibleAll.length)} of {visibleAll.length}
         </span>
       </div>
       <p className="muted">
@@ -139,6 +153,15 @@ export function RcmReviewEditor(props: {
           Fill remaining accepts as retain
         </button>
       </p>
+
+      {visible.length === 0 && (
+        <div className="card">
+          No flags in this filter.{" "}
+          <button type="button" onClick={() => setFilter("all")}>
+            Show all
+          </button>
+        </div>
+      )}
 
       {visible.map((r) => (
         <div className={`finding ${r.status === "rejected" ? "rejected" : ""}`} key={r.finding.id}>
@@ -215,7 +238,24 @@ export function RcmReviewEditor(props: {
       ))}
 
       {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
-      <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
+      {pageCount > 1 && (
+        <div className="row" style={{ marginTop: 12 }}>
+          <button type="button" disabled={safePage === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+            Previous
+          </button>
+          <span className="muted">
+            Page {safePage + 1} of {pageCount}
+          </span>
+          <button
+            type="button"
+            disabled={safePage >= pageCount - 1}
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+          >
+            Next
+          </button>
+        </div>
+      )}
+      <div className="deliver-bar" style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <button className="primary" onClick={deliver} disabled={busy}>
           {busy ? "Recording…" : "Record review & deliver workpaper"}
         </button>
