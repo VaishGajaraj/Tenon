@@ -6,7 +6,11 @@ import { DEMO_BANK } from "../src/tenants/rcm/schema";
 import { generateDemoUniverse } from "../src/tenants/rcm/generate";
 import { universeFromDroppedFiles } from "../src/tenants/rcm/drop";
 import { toCsv, workbookToXlsx } from "../src/tenants/rcm/spreadsheet";
-import { IA_MAP } from "../src/tenants/rcm/ingest";
+import { ingestWorkbook, IA_MAP, SOX_MAP } from "../src/tenants/rcm/ingest";
+import { runRecon } from "../src/tenants/rcm/engine";
+import { hasEmbedEndpoint, indexFactRows, retrieve } from "../src/tenants/rcm/retrieve";
+import { draftRationaleWithModel } from "../src/tenants/rcm/model-share";
+import { hasRealModel } from "../src/ai/provider";
 
 /**
  * `pnpm selfcheck` — does each mechanism ACTUALLY FIRE?
@@ -198,6 +202,44 @@ async function main() {
         Boolean(dropped.rcsa && dropped.rcsa.rows.length >= 3),
       );
 
+      const { output: liveDraft, flags: liveFlags } = runRecon(seed, { systemPrompt: "", fewShots: [] });
+      const liveRet = (liveDraft.mechanisms as { retrieval?: { fired?: boolean; backend?: string; citedChunkIds?: string[]; clientTextInSystemPrompt?: boolean } })
+        ?.retrieval;
+      line(
+        "retrieval fired (fuzzy + rationale)",
+        liveRet
+          ? `backend=${liveRet.backend} cited=${liveRet.citedChunkIds?.length ?? 0}`
+          : "unseen",
+        !!liveRet?.fired && (liveRet.citedChunkIds?.length ?? 0) > 0,
+      );
+      line(
+        "retrieval cites chunk ids (no prompt dump)",
+        liveRet?.clientTextInSystemPrompt === false ? "chunk ids only" : "unseen",
+        liveRet?.clientTextInSystemPrompt === false,
+      );
+      const keyPresent = hasRealModel() || hasEmbedEndpoint();
+      if (keyPresent) {
+        const iaRows = ingestWorkbook(seed.ia, IA_MAP);
+        const soxRows = ingestWorkbook(seed.sox, SOX_MAP);
+        const idx = indexFactRows(iaRows, soxRows);
+        const fuzzy = liveFlags.find((f) => f.predicate === "needs_human_match");
+        const hits = fuzzy ? retrieve(`${fuzzy.title} ${fuzzy.rationale}`, idx, 3) : [];
+        const drafted = fuzzy
+          ? await draftRationaleWithModel(fuzzy, hits)
+          : { text: "", mocked: true };
+        line(
+          "retrieval real-draft path (key present)",
+          hasEmbedEndpoint()
+            ? `embed endpoint ${drafted.mocked ? "rationale mocked" : "rationale live"}`
+            : drafted.mocked
+              ? "model key present, complete() mocked-or-empty — hash hybrid still fired"
+              : "model drafted rationale from chunk ids",
+          liveRet?.fired === true,
+        );
+      } else {
+        line("retrieval real-draft path (key present)", "skipped — no API key; mock hybrid still demos", null);
+      }
+
       const mechRuns = (runs as any[]).filter((r) => r.runs.output?.mechanisms);
       const mech =
         mechRuns.find((r) => r.runs.output?.mechanisms?.ingestSource !== "file-drop")?.runs.output
@@ -246,6 +288,11 @@ async function main() {
         "library size recorded on run",
         String(mech?.canonicalLibrarySize ?? "unseen"),
         (mech?.canonicalLibrarySize ?? 0) >= 50,
+      );
+      line(
+        "retrieval recorded on run",
+        mech?.retrieval?.fired ? `${mech.retrieval.backend} cited=${mech.retrieval.citedChunkIds?.length ?? 0}` : "unseen — run worker",
+        mech?.retrieval?.fired === true,
       );
     }
   }

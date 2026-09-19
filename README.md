@@ -49,7 +49,7 @@ Real drafting / real Postgres: copy `.env.example` → `.env.local`. RCM flags s
 - Canonical library in bank language, rewritten from NIST 800-53 / FISCAM ITGCs / FDIC RMS / OCC / Part 363 / FFIEC topics. Institution: **Wrenbridge Community Bank, N.A.** (fictional; FDIC BankFind `NAME:"Wrenbridge"` returned 0 hits on 2026-09-15 and 2026-09-18).
 - A generator produces **IA RCM** and **SOX RCM** and records every divergence in `ground_truth.json`.
 - Column maps ingest each workbook onto a canonical schema. Import sets are keyed by **row hash** (source modified dates are evidence; the wall clock is not the import clock).
-- Identity ladder: same-system record id → normalized display id → content hash → fuzzy similarity **flagged for a human, never auto-matched**.
+- Identity ladder: same-system record id → normalized display id → content hash → fuzzy similarity **flagged for a human, never auto-matched**. Fuzzy ranking is hybrid retrieval (BM25-lite + hashed 3-grams; optional embed endpoint). See `docs/RETRIEVAL.md`.
 - Fourteen TypeScript predicates. Each flag has two cell locators; unresolved evidence is quarantined and not rendered. Frequency mismatch is `attribute_mismatch` quoting both values — there is no test-vs-operating-frequency conflict predicate.
 - Accept requires a disposition (`retain | merge | automate | re-designate | retire | re-own | update`) plus a one-sentence rationale. Reject requires a closed reason code. Rejected rows land on a **rejected-flags** tab that is never deleted.
 - Committee delta is arithmetic over counts, not model prose.

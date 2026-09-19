@@ -4,9 +4,11 @@ import { COPY_IA, COPY_SOX, PREDICATES } from "./schema";
 import { generateDemoUniverse } from "./generate";
 import { ingestWorkbookDetailed, IA_MAP, SOX_MAP, detectColumnMap, type ColumnMap } from "./ingest";
 import { CANONICAL_CONTROLS } from "./library";
-import { identityLadder } from "./identity";
+import { identityLadder, similarity } from "./identity";
 import { runPredicates, type Flag } from "./predicates";
 import { committeeCounts, committeeDeltaText } from "./committee";
+import { backendForThisRun, indexFactRows, retrieve, rowPairScore } from "./retrieve";
+import { applyRetrievalToFlags, draftFuzzyWording } from "./model-share";
 
 export interface GroundTruthScore {
   predicate: PredicateName;
@@ -97,8 +99,15 @@ export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResu
     rcsaCount = rcsaIngest.rows.length;
     ingestQuarantined.push(...rcsaIngest.quarantined);
   }
-  const ladder = identityLadder(ia, sox);
-  const { flags: allFlags, quarantined } = runPredicates({
+  const index = indexFactRows(ia, sox, CANONICAL_CONTROLS);
+  const ladder = identityLadder(ia, sox, {
+    pairScore: (a, b) => {
+      const dice = similarity(`${a.title} ${a.description}`, `${b.title} ${b.description}`);
+      const hybrid = 0.55 * dice + 0.45 * rowPairScore(a, b, index);
+      return Math.max(dice, hybrid);
+    },
+  });
+  const { flags: predFlags, quarantined: predQuarantined } = runPredicates({
     asOf: universe.asOf,
     directory: universe.directory,
     risks: universe.risks,
@@ -112,7 +121,21 @@ export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResu
     unmatchedIa: ladder.unmatchedIa,
     unmatchedSox: ladder.unmatchedSox,
   });
-  const flags = allFlags.filter((f) => !suppressedByLessons(f.title, f.predicate, pv));
+  const fuzzyFlags = predFlags.filter((f) => f.predicate === "needs_human_match");
+  const otherFlags = predFlags.filter((f) => f.predicate !== "needs_human_match");
+  const cited = applyRetrievalToFlags(fuzzyFlags, index);
+  for (const f of cited.flags) {
+    const proposal = ladder.fuzzy.find(
+      (p) => p.ia.displayId === f.iaDisplayId && p.sox.displayId === f.soxDisplayId,
+    );
+    if (!proposal) continue;
+    const hits = retrieve(`${proposal.ia.title} ${proposal.ia.description}`, index, 4);
+    f.rationale = draftFuzzyWording(proposal, hits);
+  }
+  const quarantined = [...predQuarantined, ...cited.quarantined];
+  const flags = [...otherFlags, ...cited.flags].filter((f) => !suppressedByLessons(f.title, f.predicate, pv));
+  const citedIds = cited.report.citedChunkIds;
+  const retrievalQueries = ladder.fuzzy.length + fuzzyFlags.length;
   const counts = committeeCounts({
     flags,
     quarantined: quarantined.length,
@@ -145,6 +168,7 @@ export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResu
       "MOCK MODE: public-domain Wrenbridge Community Bank language — not a client file.",
       `Predicates over the fact table produced ${flags.length} flags; ${quarantined.length} quarantined for unresolved evidence.`,
       `Identity ladder: record_id=${ladder.rungCounts.record_id} display_id=${ladder.rungCounts.display_id} content_hash=${ladder.rungCounts.content_hash} fuzzy_flagged=${ladder.rungCounts.fuzzy_flagged} auto_fuzzy=${ladder.autoMatchedFuzzy}.`,
+      `Retrieval ${backendForThisRun()} over ${index.chunks.length} chunks; cited ${citedIds.length} chunk ids on fuzzy rationales.`,
       "Frequency mismatches are attribute_mismatch with both values quoted. No test-vs-operating-frequency predicate exists.",
     ],
     rejectedFlags: [],
@@ -192,6 +216,16 @@ export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResu
       presetMaps: universe.ingestReport?.maps ?? { ia: "ia", sox: "sox" },
       quarantinedBadRows: ingestQuarantined.length,
       optionalThirdCopy: Boolean(universe.rcsa),
+      retrieval: {
+        fired: index.chunks.length > 0 && retrievalQueries > 0,
+        backend: backendForThisRun(),
+        chunkCount: index.chunks.length,
+        queries: retrievalQueries,
+        citedChunkIds: citedIds,
+        fuzzyUsedRetrieval: ladder.fuzzy.length > 0,
+        rationaleDrafted: cited.flags.length > 0,
+        clientTextInSystemPrompt: false,
+      },
     },
   };
   return { output, flags, quarantined, universe };
