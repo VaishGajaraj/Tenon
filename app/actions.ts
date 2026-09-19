@@ -63,6 +63,11 @@ export async function ingestDroppedAction(formData: FormData): Promise<void> {
       bankName: universe.bankName,
       asOf: universe.asOf,
       universeJson: JSON.stringify(universe),
+      iaRowCount: universe.ia.rows.length,
+      soxRowCount: universe.sox.rows.length,
+      rcsaRowCount: universe.rcsa?.rows.length ?? 0,
+      ingestSource: "file-drop",
+      rcsaCopyName: universe.rcsa?.copyName ?? "",
     },
   });
   revalidatePath("/recon");
@@ -102,6 +107,7 @@ export async function runDraftAction(itemId: number): Promise<void> {
   await draftItem(itemId);
   revalidatePath("/work");
   revalidatePath(`/work/${itemId}`);
+  revalidatePath("/recon");
 }
 
 export async function submitReview(payload: unknown): Promise<void> {

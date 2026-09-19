@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { getDb, schema } from "@/db/client";
+import { PendingSubmit } from "../pending-submit";
 import { runDraftAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -26,13 +27,17 @@ export default async function WorkQueue() {
         </div>
       )}
       {items.map((it: typeof schema.workItems.$inferSelect) => (
-        <div className="card row" key={it.id}>
+        <div className="card row queue-item" key={it.id}>
           <div>
             <b>{it.title}</b>
             <div className="muted">
               #{it.id} · {it.tenant}/{it.sku} ·{" "}
               {new Date(it.createdAt as unknown as string).toLocaleString()}
             </div>
+            {it.status === "failed" && it.lastError && (
+              <p style={{ color: "var(--danger)", margin: "8px 0 0" }}>{it.lastError}</p>
+            )}
+            {it.status === "drafting" && <p className="muted">Running predicates… refresh if this sticks.</p>}
           </div>
           <div className="row" style={{ gap: 10 }}>
             <span className={`pill ${it.status}`}>{it.status}</span>
@@ -43,9 +48,17 @@ export default async function WorkQueue() {
                   await runDraftAction(it.id);
                 }}
               >
-                <button className="primary" type="submit">
-                  Run draft
-                </button>
+                <PendingSubmit pendingLabel="Running…">Run draft</PendingSubmit>
+              </form>
+            )}
+            {it.status === "failed" && (
+              <form
+                action={async () => {
+                  "use server";
+                  await runDraftAction(it.id);
+                }}
+              >
+                <PendingSubmit pendingLabel="Retrying…">Retry</PendingSubmit>
               </form>
             )}
             {it.status === "in_review" && (

@@ -47,6 +47,13 @@ blockquote {
 }
 @media (max-width: 720px) {
   .quotes { grid-template-columns: 1fr; }
+  .shell { padding: 16px 12px 72px; }
+  .topbar nav { flex-wrap: wrap; width: 100%; }
+  .card.row, .row.queue-item { flex-direction: column; align-items: stretch; }
+  .finding .head { flex-direction: column; align-items: flex-start; }
+  .finding .tools input, .finding .tools select { width: 100% !important; min-width: 0; }
+  input[type="text"], textarea, select, button, .btn { font-size: 16px; }
+  .deliver-bar { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; border-top: 1px solid var(--line); }
 }
 
 h1 { font-size: 22px; margin: 0 0 6px; }
@@ -61,7 +68,8 @@ h2 { font-size: 16px; margin: 24px 0 8px; }
 .stat .n { font-size: 26px; font-weight: 700; }
 .stat .l { color: var(--muted); font-size: 12.5px; }
 
-.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.topbar { flex-wrap: wrap; }
 .pill {
   display: inline-block; padding: 2px 9px; border-radius: 999px;
   font-size: 12px; border: 1px solid var(--line); background: var(--bg);

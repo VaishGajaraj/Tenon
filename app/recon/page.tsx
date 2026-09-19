@@ -5,6 +5,7 @@ import { runDraftAction } from "../actions";
 import { DropForm } from "./drop-form";
 import { DEMO_BANK } from "@/tenants/rcm/schema";
 import { CANONICAL_CONTROLS } from "@/tenants/rcm/library";
+import { PendingSubmit } from "../pending-submit";
 
 export const dynamic = "force-dynamic";
 
@@ -42,25 +43,17 @@ export default async function ReconLanding() {
           asOf?: string;
           preparer?: string;
           reviewer?: string;
-          universeJson?: string;
+          iaRowCount?: number;
+          soxRowCount?: number;
+          rcsaRowCount?: number;
+          ingestSource?: string;
+          rcsaCopyName?: string;
         };
-        let iaRows = 0;
-        let soxRows = 0;
-        let rcsaRows = 0;
-        let thirdName = "";
-        let source = "seed";
-        if (input.universeJson) {
-          try {
-            const u = JSON.parse(input.universeJson);
-            iaRows = u.ia?.rows?.length ?? 0;
-            soxRows = u.sox?.rows?.length ?? 0;
-            rcsaRows = u.rcsa?.rows?.length ?? 0;
-            thirdName = u.rcsa?.copyName ?? "";
-            source = u.ingestReport?.source ?? "seed";
-          } catch {
-            /* ignore */
-          }
-        }
+        const iaRows = input.iaRowCount ?? 0;
+        const soxRows = input.soxRowCount ?? 0;
+        const rcsaRows = input.rcsaRowCount ?? 0;
+        const thirdName = input.rcsaCopyName ?? "";
+        const source = input.ingestSource ?? "seed";
         return (
           <div className="card" key={item.id}>
             <div className="row">
@@ -92,6 +85,12 @@ export default async function ReconLanding() {
                 </div>
               )}
             </div>
+            {item.status === "failed" && item.lastError && (
+              <p style={{ color: "var(--danger)" }}>{item.lastError}</p>
+            )}
+            {item.status === "drafting" && (
+              <p className="muted">Predicates running on the fact table. Refresh if this does not move to in_review.</p>
+            )}
             <p className="muted">The flag matrix does not open until you continue. MOCK stays in the header.</p>
             <div className="row">
               <div className="row" style={{ gap: 10 }}>
@@ -102,9 +101,17 @@ export default async function ReconLanding() {
                       await runDraftAction(item.id);
                     }}
                   >
-                    <button className="primary" type="submit">
-                      Run predicates
-                    </button>
+                    <PendingSubmit pendingLabel="Running predicates…">Run predicates</PendingSubmit>
+                  </form>
+                )}
+                {item.status === "failed" && (
+                  <form
+                    action={async () => {
+                      "use server";
+                      await runDraftAction(item.id);
+                    }}
+                  >
+                    <PendingSubmit pendingLabel="Retrying…">Retry predicates</PendingSubmit>
                   </form>
                 )}
                 {item.status === "in_review" && (

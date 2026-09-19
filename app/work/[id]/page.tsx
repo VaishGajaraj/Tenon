@@ -128,9 +128,24 @@ export default async function WorkItemPage({ params }: { params: { id: string } 
       <main>
         {isRcm && <div className="mock-stamp">MOCK</div>}
         <h1>{item.title}</h1>
-        <p className="muted">
-          Status: {item.status}. No draft yet — run it from the queue, the recon landing, or{" "}
-          <code>pnpm worker</code>.
+        {item.status === "failed" && (
+          <div className="card" style={{ borderColor: "var(--danger)" }}>
+            <b>Draft failed.</b>
+            <p style={{ color: "var(--danger)" }}>{item.lastError || "Unknown error."}</p>
+            <p className="muted">Retry from /recon or the work queue. Predicates are TypeScript over the fact table.</p>
+          </div>
+        )}
+        {item.status === "drafting" && (
+          <div className="card">Running predicates… this should be seconds on MOCK. Refresh shortly.</div>
+        )}
+        {item.status !== "failed" && item.status !== "drafting" && (
+          <p className="muted">
+            Status: {item.status}. No draft yet — run it from the queue, the recon landing, or{" "}
+            <code>pnpm worker</code>.
+          </p>
+        )}
+        <p>
+          <Link href="/recon">← copies (MOCK)</Link>
         </p>
       </main>
     );

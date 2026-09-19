@@ -26,6 +26,9 @@ async function main() {
       bankName: universe.bankName,
       asOf: universe.asOf,
       universeJson: JSON.stringify(universe),
+      iaRowCount: universe.ia.rows.length,
+      soxRowCount: universe.sox.rows.length,
+      ingestSource: "seed",
     },
   });
   console.log("seeded MOCK RCM recon (IA RCM vs SOX RCM). Run: pnpm worker");
