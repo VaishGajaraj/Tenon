@@ -58,7 +58,7 @@ function dumpUniverse(u: ReturnType<typeof generateDemoUniverse>): string {
     u.ia.headers.join(" "),
     u.sox.headers.join(" "),
   ];
-  for (const row of [...u.ia.rows, ...u.sox.rows, ...u.priorSox.rows]) {
+  for (const row of [...u.ia.rows, ...u.sox.rows, ...u.priorSox.rows, ...(u.rcsa?.rows ?? [])]) {
     chunks.push(Object.values(row).join(" "));
   }
   for (const p of u.directory) chunks.push(`${p.name} ${p.title} ${p.email}`);

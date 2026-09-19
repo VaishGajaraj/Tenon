@@ -329,5 +329,10 @@ export function generateDemoUniverse(): ReconUniverse {
     issues,
     triggers: TRIGGERS.map((t) => ({ ...t })),
     groundTruth: gt,
+    ingestReport: {
+      source: "seed",
+      maps: { ia: "ia", sox: "sox" },
+      quarantined: [],
+    },
   };
 }

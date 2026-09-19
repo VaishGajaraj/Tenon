@@ -2,7 +2,8 @@ import type { DraftOutput, PromptSnapshot } from "@/core/types";
 import type { ReconUniverse, GroundTruthEntry, PredicateName } from "./schema";
 import { COPY_IA, COPY_SOX, PREDICATES } from "./schema";
 import { generateDemoUniverse } from "./generate";
-import { ingestWorkbook, IA_MAP, SOX_MAP } from "./ingest";
+import { ingestWorkbookDetailed, IA_MAP, SOX_MAP, detectColumnMap, type ColumnMap } from "./ingest";
+import { CANONICAL_CONTROLS } from "./library";
 import { identityLadder } from "./identity";
 import { runPredicates, type Flag } from "./predicates";
 import { committeeCounts, committeeDeltaText } from "./committee";
@@ -75,10 +76,27 @@ export interface ReconResult {
   universe: ReconUniverse;
 }
 
+function mapForBook(book: ReconUniverse["ia"], fallback: ColumnMap): ColumnMap {
+  if (!book.headers?.length) return fallback;
+  return detectColumnMap(book.headers).map;
+}
+
 export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResult {
-  const ia = ingestWorkbook(universe.ia, IA_MAP);
-  const sox = ingestWorkbook(universe.sox, SOX_MAP);
-  const priorSox = ingestWorkbook(universe.priorSox, SOX_MAP);
+  const iaMap = mapForBook(universe.ia, IA_MAP);
+  const soxMap = mapForBook(universe.sox, SOX_MAP);
+  const iaIngest = ingestWorkbookDetailed(universe.ia, iaMap);
+  const soxIngest = ingestWorkbookDetailed(universe.sox, soxMap);
+  const priorSoxIngest = ingestWorkbookDetailed(universe.priorSox, soxMap);
+  const ia = iaIngest.rows;
+  const sox = soxIngest.rows;
+  const priorSox = priorSoxIngest.rows;
+  const ingestQuarantined = [...iaIngest.quarantined, ...soxIngest.quarantined, ...priorSoxIngest.quarantined];
+  let rcsaCount = 0;
+  if (universe.rcsa) {
+    const rcsaIngest = ingestWorkbookDetailed(universe.rcsa, detectColumnMap(universe.rcsa.headers).map);
+    rcsaCount = rcsaIngest.rows.length;
+    ingestQuarantined.push(...rcsaIngest.quarantined);
+  }
   const ladder = identityLadder(ia, sox);
   const { flags: allFlags, quarantined } = runPredicates({
     asOf: universe.asOf,
@@ -133,6 +151,9 @@ export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResu
     copies: [
       { name: COPY_IA, rowCount: ia.length, sheet: universe.ia.sheet },
       { name: COPY_SOX, rowCount: sox.length, sheet: universe.sox.sheet },
+      ...(universe.rcsa
+        ? [{ name: universe.rcsa.copyName, rowCount: rcsaCount, sheet: universe.rcsa.sheet }]
+        : []),
     ],
     committeeCounts: counts,
     workpaper: {
@@ -144,7 +165,11 @@ export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResu
     mode: "MOCK",
     mechanisms: {
       dataMode: "MOCK",
-      namedCopies: [COPY_IA, COPY_SOX],
+      namedCopies: [
+        COPY_IA,
+        COPY_SOX,
+        ...(universe.rcsa ? [universe.rcsa.copyName] : []),
+      ],
       identityLadder: {
         record_id: ladder.rungCounts.record_id,
         display_id: ladder.rungCounts.display_id,
@@ -161,6 +186,12 @@ export function runRecon(universe: ReconUniverse, pv: PromptSnapshot): ReconResu
       wallClockNotUsedAsImportClock: true,
       groundTruthScore: gt,
       cellLocatorsPerFlag: 2,
+      canonicalLibrarySize: CANONICAL_CONTROLS.length,
+      fileDropIngest: universe.ingestReport?.source === "file-drop",
+      ingestSource: universe.ingestReport?.source ?? "seed",
+      presetMaps: universe.ingestReport?.maps ?? { ia: "ia", sox: "sox" },
+      quarantinedBadRows: ingestQuarantined.length,
+      optionalThirdCopy: Boolean(universe.rcsa),
     },
   };
   return { output, flags, quarantined, universe };

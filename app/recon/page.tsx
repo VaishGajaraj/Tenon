@@ -2,6 +2,9 @@ import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db/client";
 import { runDraftAction } from "../actions";
+import { DropForm } from "./drop-form";
+import { DEMO_BANK } from "@/tenants/rcm/schema";
+import { CANONICAL_CONTROLS } from "@/tenants/rcm/library";
 
 export const dynamic = "force-dynamic";
 
@@ -12,25 +15,6 @@ export default async function ReconLanding() {
     .from(schema.workItems)
     .where(eq(schema.workItems.tenant, "rcm"))
     .orderBy(desc(schema.workItems.createdAt));
-  const item = items[0];
-  const input = (item?.input ?? {}) as {
-    bankName?: string;
-    asOf?: string;
-    preparer?: string;
-    reviewer?: string;
-    universeJson?: string;
-  };
-  let iaRows = 0;
-  let soxRows = 0;
-  if (input.universeJson) {
-    try {
-      const u = JSON.parse(input.universeJson);
-      iaRows = u.ia?.rows?.length ?? 0;
-      soxRows = u.sox?.rows?.length ?? 0;
-    } catch {
-      /* ignore */
-    }
-  }
 
   return (
     <main>
@@ -38,64 +22,111 @@ export default async function ReconLanding() {
       <h1>RCM reconciliation</h1>
       <p className="muted">
         Public-domain bank language — not a client file. Two named copies the institution already
-        keeps. Predicate flags over a fact table, not model prose.
+        keeps. Predicate flags over a fact table, not model prose. {DEMO_BANK.name} is fictional
+        (BankFind NAME:&quot;Wrenbridge&quot; = {DEMO_BANK.bankfindCheck.hits} hits as of{" "}
+        {DEMO_BANK.bankfindCheck.asOf}). Canonical library: {CANONICAL_CONTROLS.length} controls.
       </p>
 
-      {!item && (
+      <DropForm />
+
+      {items.length === 0 && (
         <div className="card">
           No MOCK engagement yet. From the repo root: <code>pnpm db:init && pnpm seed && pnpm worker</code>
+          , or drop two spreadsheets above.
         </div>
       )}
 
-      {item && (
-        <>
-          <p className="muted">
-            {input.bankName ?? "Wrenbridge Community Bank, N.A."} · import as-of {input.asOf ?? "file date"} ·
-            preparer {input.preparer} · reviewer {input.reviewer}
-          </p>
-          <div className="grid">
-            <div className="card">
-              <div className="muted">Copy</div>
-              <h2 style={{ marginTop: 4 }}>IA RCM</h2>
-              <p>Internal Audit workbook. {iaRows ? `${iaRows} control rows.` : ""}</p>
-            </div>
-            <div className="card">
-              <div className="muted">Copy</div>
-              <h2 style={{ marginTop: 4 }}>SOX RCM</h2>
-              <p>SOX PMO workbook. {soxRows ? `${soxRows} control rows.` : ""}</p>
-            </div>
-          </div>
-          <p className="muted">The flag matrix does not open until you continue. MOCK stays in the header.</p>
-          <div className="row">
-            <div className="row" style={{ gap: 10 }}>
+      {items.map((item) => {
+        const input = (item.input ?? {}) as {
+          bankName?: string;
+          asOf?: string;
+          preparer?: string;
+          reviewer?: string;
+          universeJson?: string;
+        };
+        let iaRows = 0;
+        let soxRows = 0;
+        let rcsaRows = 0;
+        let thirdName = "";
+        let source = "seed";
+        if (input.universeJson) {
+          try {
+            const u = JSON.parse(input.universeJson);
+            iaRows = u.ia?.rows?.length ?? 0;
+            soxRows = u.sox?.rows?.length ?? 0;
+            rcsaRows = u.rcsa?.rows?.length ?? 0;
+            thirdName = u.rcsa?.copyName ?? "";
+            source = u.ingestReport?.source ?? "seed";
+          } catch {
+            /* ignore */
+          }
+        }
+        return (
+          <div className="card" key={item.id}>
+            <div className="row">
+              <div>
+                <b>{item.title}</b>
+                <div className="muted">
+                  {input.bankName ?? DEMO_BANK.name} · as-of {input.asOf ?? "file date"} ·{" "}
+                  {source === "file-drop" ? "file drop" : "seeded library"} · preparer {input.preparer}
+                </div>
+              </div>
               <span className={`pill ${item.status}`}>{item.status}</span>
-              {item.status === "intake" && (
-                <form
-                  action={async () => {
-                    "use server";
-                    await runDraftAction(item.id);
-                  }}
-                >
-                  <button className="primary" type="submit">
-                    Run predicates
-                  </button>
-                </form>
-              )}
-              {item.status === "in_review" && (
-                <Link className="btn primary" href={`/work/${item.id}`} style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }}>
-                  Open flag matrix →
-                </Link>
-              )}
-              {item.status === "delivered" && (
-                <Link className="btn" href={`/work/${item.id}`}>
-                  Open workpaper →
-                </Link>
+            </div>
+            <div className="grid" style={{ marginTop: 12 }}>
+              <div className="card">
+                <div className="muted">Copy</div>
+                <h2 style={{ marginTop: 4 }}>IA RCM</h2>
+                <p>{iaRows ? `${iaRows} control rows.` : "Named Internal Audit workbook."}</p>
+              </div>
+              <div className="card">
+                <div className="muted">Copy</div>
+                <h2 style={{ marginTop: 4 }}>SOX RCM</h2>
+                <p>{soxRows ? `${soxRows} control rows.` : "Named SOX PMO workbook."}</p>
+              </div>
+              {rcsaRows > 0 && (
+                <div className="card">
+                  <div className="muted">Copy</div>
+                  <h2 style={{ marginTop: 4 }}>{thirdName || "RCSA"}</h2>
+                  <p>{rcsaRows} rows ingested. Pairwise predicates remain IA↔SOX.</p>
+                </div>
               )}
             </div>
-            <Link href="/work">queue</Link>
+            <p className="muted">The flag matrix does not open until you continue. MOCK stays in the header.</p>
+            <div className="row">
+              <div className="row" style={{ gap: 10 }}>
+                {item.status === "intake" && (
+                  <form
+                    action={async () => {
+                      "use server";
+                      await runDraftAction(item.id);
+                    }}
+                  >
+                    <button className="primary" type="submit">
+                      Run predicates
+                    </button>
+                  </form>
+                )}
+                {item.status === "in_review" && (
+                  <Link
+                    className="btn primary"
+                    href={`/work/${item.id}`}
+                    style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }}
+                  >
+                    Open flag matrix →
+                  </Link>
+                )}
+                {item.status === "delivered" && (
+                  <Link className="btn" href={`/work/${item.id}`}>
+                    Open workpaper →
+                  </Link>
+                )}
+              </div>
+              <Link href="/work">queue</Link>
+            </div>
           </div>
-        </>
-      )}
+        );
+      })}
     </main>
   );
 }

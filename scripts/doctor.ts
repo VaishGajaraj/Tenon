@@ -1,6 +1,12 @@
 import { and, eq, desc } from "drizzle-orm";
 import { getDb, schema } from "../src/db/client";
 import { allSkus } from "../src/core/sku";
+import { CANONICAL_CONTROLS } from "../src/tenants/rcm/library";
+import { DEMO_BANK } from "../src/tenants/rcm/schema";
+import { generateDemoUniverse } from "../src/tenants/rcm/generate";
+import { universeFromDroppedFiles } from "../src/tenants/rcm/drop";
+import { toCsv, workbookToXlsx } from "../src/tenants/rcm/spreadsheet";
+import { IA_MAP } from "../src/tenants/rcm/ingest";
 
 /**
  * `pnpm selfcheck` — does each mechanism ACTUALLY FIRE?
@@ -155,8 +161,47 @@ async function main() {
     }
 
     if (tenant === "rcm") {
+      const seed = generateDemoUniverse();
+      line(
+        "canonical library size (bank-grade)",
+        String(CANONICAL_CONTROLS.length),
+        CANONICAL_CONTROLS.length >= 50,
+      );
+      line(
+        "Wrenbridge BankFind collision",
+        `${DEMO_BANK.bankfindCheck.queried} as of ${DEMO_BANK.bankfindCheck.asOf} → ${DEMO_BANK.bankfindCheck.hits} hits`,
+        DEMO_BANK.fictional && DEMO_BANK.bankfindCheck.hits === 0,
+      );
+      const iaCsv = toCsv(seed.ia.headers, [
+        ...seed.ia.rows,
+        { [IA_MAP.title]: "no id" },
+        { [IA_MAP.description]: "no identity" },
+      ]);
+      const dropped = universeFromDroppedFiles({
+        ia: { filename: "ia.csv", bytes: iaCsv },
+        sox: { filename: "sox.xlsx", bytes: workbookToXlsx(seed.sox) },
+        rcsa: { filename: "rcsa.csv", bytes: toCsv(seed.ia.headers, seed.ia.rows.slice(0, 3)) },
+      });
+      line(
+        "file-drop ingest (xlsx/csv + maps)",
+        `${dropped.ingestReport?.maps.ia} / ${dropped.ingestReport?.maps.sox} source=${dropped.ingestReport?.source}`,
+        dropped.ingestReport?.source === "file-drop" && dropped.dataMode === "MOCK",
+      );
+      line(
+        "file-drop quarantined bad rows",
+        String(dropped.ingestReport?.quarantined.length ?? 0),
+        (dropped.ingestReport?.quarantined.length ?? 0) >= 2,
+      );
+      line(
+        "optional third copy ingested",
+        dropped.rcsa ? `${dropped.rcsa.copyName} ${dropped.rcsa.rows.length} rows` : "absent",
+        Boolean(dropped.rcsa && dropped.rcsa.rows.length >= 3),
+      );
+
       const mechRuns = (runs as any[]).filter((r) => r.runs.output?.mechanisms);
-      const mech = mechRuns[0]?.runs.output?.mechanisms;
+      const mech =
+        mechRuns.find((r) => r.runs.output?.mechanisms?.ingestSource !== "file-drop")?.runs.output
+          ?.mechanisms ?? mechRuns[0]?.runs.output?.mechanisms;
       const named = (mech?.namedCopies ?? []).join(", ");
       line("MOCK data mode (not REAL / not a client)", String(mech?.dataMode ?? "unseen"), mech?.dataMode === "MOCK");
       line("named copies (not Dataset A/B)", named || "unseen", named.includes("IA RCM") && named.includes("SOX RCM"));
@@ -197,6 +242,11 @@ async function main() {
       line("workpaper mode MOCK", String(del?.workpaper?.mode ?? del?.mode ?? "unseen"), (del?.workpaper?.mode ?? del?.mode) === "MOCK");
       const narrative = String(del?.narrative ?? (runs as any[])[0]?.runs.output?.narrative ?? "");
       line("committee delta from code counts", narrative.includes("code-computed") ? "yes" : "no", narrative.includes("code-computed"));
+      line(
+        "library size recorded on run",
+        String(mech?.canonicalLibrarySize ?? "unseen"),
+        (mech?.canonicalLibrarySize ?? 0) >= 50,
+      );
     }
   }
   console.log(
